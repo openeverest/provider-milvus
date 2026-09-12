@@ -28,7 +28,7 @@ This document outlines the planned features and improvements for the Milvus prov
   - Topology-specific rules (e.g., minimum coordinators for cluster mode)
   - Resource limit vs. request balance checks
 
-- [ ] **Bundled Dependency Resource Management**
+- [x] **Bundled Dependency Resource Management**
   - Expose resource requests/limits for operator-deployed dependencies (etcd, Pulsar bookie/broker/zookeeper, MinIO)
   - Provide sane per-topology defaults so dependencies don't over-provision on small clusters
   - Support replica/count tuning for dependency components (e.g., etcd cluster size, Pulsar broker count)

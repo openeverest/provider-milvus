@@ -99,24 +99,6 @@ func makeMilvusComponentSpec(components map[string]corev1alpha1.ComponentSpec, n
 	}
 }
 
-func setDependencyStorageSize(spec *milvusapi.MilvusSpec, size string) {
-	if size == "" {
-		return
-	}
-	if spec.Dep == nil {
-		spec.Dep = &milvusapi.MilvusDependencies{}
-	}
-	if spec.Dep.Storage.InCluster == nil {
-		spec.Dep.Storage.InCluster = &milvusapi.InClusterConfig{}
-	}
-	if spec.Dep.Storage.InCluster.Values == nil {
-		spec.Dep.Storage.InCluster.Values = milvusapi.Values{}
-	}
-	spec.Dep.Storage.InCluster.Values["persistence"] = map[string]any{
-		"size": size,
-	}
-}
-
 // milvusEngineConfig collects the `configuration` YAML from every component's
 // parameters and deep-merges it into a single Values map. Milvus uses one shared
 // engine config (spec.config), so configuration provided on any component is
@@ -232,7 +214,7 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 				Port: 19530,
 			},
 		}
-		setDependencyStorageSize(&spec, storageSizeFromComponent(instance.Spec.Components, common.ComponentStandalone))
+		spec.Dep = buildDependencies(c, topologyType, storageSizeFromComponent(instance.Spec.Components, common.ComponentStandalone))
 		return spec, nil
 	}
 
@@ -271,7 +253,7 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 			spec.Com.QueryNode = &milvusapi.MilvusQueryNode{Component: milvusapi.Component{ComponentSpec: makeMilvusComponentSpec(instance.Spec.Components, name, baseImage, resolvedVersion), Replicas: replicas}}
 		}
 	}
-	setDependencyStorageSize(&spec, storageSizeFromComponents(instance.Spec.Components, common.ComponentDataNode, common.ComponentQueryNode))
+	spec.Dep = buildDependencies(c, topologyType, storageSizeFromComponents(instance.Spec.Components, common.ComponentDataNode, common.ComponentQueryNode))
 
 	return spec, nil
 }

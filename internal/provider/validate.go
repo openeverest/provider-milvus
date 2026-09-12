@@ -9,6 +9,9 @@ import (
 	corev1alpha1 "github.com/openeverest/openeverest/v2/api/core/v1alpha1"
 	"github.com/openeverest/openeverest/v2/provider-runtime/controller"
 
+	"github.com/openeverest/provider-milvus/definition/dependencies"
+	"github.com/openeverest/provider-milvus/definition/topologies/cluster"
+	"github.com/openeverest/provider-milvus/definition/topologies/standalone"
 	"github.com/openeverest/provider-milvus/internal/common"
 	"github.com/openeverest/provider-milvus/internal/milvusapi"
 )
@@ -73,6 +76,10 @@ func validateInstance(c *controller.Context) error {
 	}
 
 	if err := validateStorageNotDecreased(c, topologyType); err != nil {
+		return err
+	}
+
+	if err := validateDependencies(c, topologyType); err != nil {
 		return err
 	}
 
@@ -229,7 +236,7 @@ func requestedStorageSize(components map[string]corev1alpha1.ComponentSpec, topo
 }
 
 // currentStorageSize extracts the persistence size applied to an existing
-// Milvus CR, mirroring the layout written by setDependencyStorageSize.
+// Milvus CR, mirroring the layout written by buildStorage.
 func currentStorageSize(m *milvusapi.Milvus) string {
 	if m.Spec.Dep == nil || m.Spec.Dep.Storage.InCluster == nil {
 		return ""
@@ -243,4 +250,149 @@ func currentStorageSize(m *milvusapi.Milvus) string {
 		return ""
 	}
 	return size
+}
+
+// validateDependencies validates the bundled/external dependency configuration
+// carried in the topology parameters.
+func validateDependencies(c *controller.Context, topologyType string) error {
+	var etcd *dependencies.Etcd
+	var pulsar *dependencies.Pulsar
+	var storage *dependencies.Storage
+
+	if topologyType == "cluster" {
+		var params cluster.ClusterTopologyParameters
+		if c.TryDecodeTopologyParameters(&params) && params.Dependencies != nil {
+			etcd = params.Dependencies.Etcd
+			pulsar = params.Dependencies.Pulsar
+			storage = params.Dependencies.Storage
+		}
+	} else {
+		var params standalone.StandaloneTopologyParameters
+		if c.TryDecodeTopologyParameters(&params) && params.Dependencies != nil {
+			etcd = params.Dependencies.Etcd
+			storage = params.Dependencies.Storage
+		}
+	}
+
+	if err := validateEtcdDependency(etcd); err != nil {
+		return err
+	}
+	if err := validatePulsarDependency(pulsar); err != nil {
+		return err
+	}
+	return validateStorageDependency(storage)
+}
+
+func validateEtcdDependency(etcd *dependencies.Etcd) error {
+	if etcd == nil {
+		return nil
+	}
+	if etcd.External {
+		if len(etcd.Endpoints) == 0 {
+			return fmt.Errorf("etcd.endpoints is required when etcd.external is true")
+		}
+		return nil
+	}
+	if err := validateDependencyReplicas("etcd", etcd.Replicas); err != nil {
+		return err
+	}
+	return validateDependencyResources("etcd", etcd.Resources)
+}
+
+func validatePulsarDependency(pulsar *dependencies.Pulsar) error {
+	if pulsar == nil {
+		return nil
+	}
+	if pulsar.External {
+		if pulsar.Endpoint == "" {
+			return fmt.Errorf("pulsar.endpoint is required when pulsar.external is true")
+		}
+		return nil
+	}
+	components := map[string]*dependencies.PulsarComponent{
+		"pulsar.broker":     pulsar.Broker,
+		"pulsar.bookkeeper": pulsar.BookKeeper,
+		"pulsar.zookeeper":  pulsar.ZooKeeper,
+		"pulsar.proxy":      pulsar.Proxy,
+	}
+	for _, name := range []string{"pulsar.broker", "pulsar.bookkeeper", "pulsar.zookeeper", "pulsar.proxy"} {
+		component := components[name]
+		if component == nil {
+			continue
+		}
+		if err := validateDependencyReplicas(name, component.Replicas); err != nil {
+			return err
+		}
+		if err := validateDependencyResources(name, component.Resources); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateStorageDependency(storage *dependencies.Storage) error {
+	if storage == nil {
+		return nil
+	}
+	if storage.External {
+		if storage.Endpoint == "" {
+			return fmt.Errorf("storage.endpoint is required when storage.external is true")
+		}
+		return nil
+	}
+	if err := validateDependencyReplicas("storage", storage.Replicas); err != nil {
+		return err
+	}
+	return validateDependencyResources("storage", storage.Resources)
+}
+
+func validateDependencyReplicas(name string, replicas *int32) error {
+	if replicas != nil && *replicas < 1 {
+		return fmt.Errorf("%s.replicas must be >= 1", name)
+	}
+	return nil
+}
+
+// validateDependencyResources parses the CPU/memory quantity strings and
+// ensures requests do not exceed limits.
+func validateDependencyResources(name string, resources *dependencies.Resources) error {
+	if resources == nil {
+		return nil
+	}
+	requests, err := parseResourceList(name, "requests", resources.Requests)
+	if err != nil {
+		return err
+	}
+	limits, err := parseResourceList(name, "limits", resources.Limits)
+	if err != nil {
+		return err
+	}
+	if err := validateRequestNotAboveLimit(name, corev1.ResourceCPU, requests, limits); err != nil {
+		return err
+	}
+	return validateRequestNotAboveLimit(name, corev1.ResourceMemory, requests, limits)
+}
+
+// parseResourceList converts a dependency ResourceList into a corev1.ResourceList,
+// validating that every provided quantity string is well-formed.
+func parseResourceList(name, kind string, list *dependencies.ResourceList) (corev1.ResourceList, error) {
+	result := corev1.ResourceList{}
+	if list == nil {
+		return result, nil
+	}
+	if list.CPU != "" {
+		cpu, err := resource.ParseQuantity(list.CPU)
+		if err != nil {
+			return nil, fmt.Errorf("%s.resources.%s.cpu %q is invalid: %w", name, kind, list.CPU, err)
+		}
+		result[corev1.ResourceCPU] = cpu
+	}
+	if list.Memory != "" {
+		mem, err := resource.ParseQuantity(list.Memory)
+		if err != nil {
+			return nil, fmt.Errorf("%s.resources.%s.memory %q is invalid: %w", name, kind, list.Memory, err)
+		}
+		result[corev1.ResourceMemory] = mem
+	}
+	return result, nil
 }

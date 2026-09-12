@@ -165,6 +165,168 @@ spec:
                 replicas:
                   minimum: 1
                 resources: {}
+      parametersSchema:
+        openAPIV3Schema:
+          properties:
+            dependencies:
+              properties:
+                etcd:
+                  properties:
+                    endpoints:
+                      items:
+                        type: string
+                      type: array
+                    external:
+                      type: boolean
+                    replicas:
+                      format: int32
+                      type: integer
+                    resources:
+                      properties:
+                        limits:
+                          properties:
+                            cpu:
+                              type: string
+                            memory:
+                              type: string
+                          type: object
+                        requests:
+                          properties:
+                            cpu:
+                              type: string
+                            memory:
+                              type: string
+                          type: object
+                      type: object
+                  type: object
+                pulsar:
+                  properties:
+                    bookkeeper:
+                      properties:
+                        replicas:
+                          format: int32
+                          type: integer
+                        resources:
+                          properties:
+                            limits:
+                              properties:
+                                cpu:
+                                  type: string
+                                memory:
+                                  type: string
+                              type: object
+                            requests:
+                              properties:
+                                cpu:
+                                  type: string
+                                memory:
+                                  type: string
+                              type: object
+                          type: object
+                      type: object
+                    broker:
+                      properties:
+                        replicas:
+                          format: int32
+                          type: integer
+                        resources:
+                          properties:
+                            limits:
+                              properties:
+                                cpu:
+                                  type: string
+                                memory:
+                                  type: string
+                              type: object
+                            requests:
+                              properties:
+                                cpu:
+                                  type: string
+                                memory:
+                                  type: string
+                              type: object
+                          type: object
+                      type: object
+                    endpoint:
+                      type: string
+                    external:
+                      type: boolean
+                    proxy:
+                      properties:
+                        replicas:
+                          format: int32
+                          type: integer
+                        resources:
+                          properties:
+                            limits:
+                              properties:
+                                cpu:
+                                  type: string
+                                memory:
+                                  type: string
+                              type: object
+                            requests:
+                              properties:
+                                cpu:
+                                  type: string
+                                memory:
+                                  type: string
+                              type: object
+                          type: object
+                      type: object
+                    zookeeper:
+                      properties:
+                        replicas:
+                          format: int32
+                          type: integer
+                        resources:
+                          properties:
+                            limits:
+                              properties:
+                                cpu:
+                                  type: string
+                                memory:
+                                  type: string
+                              type: object
+                            requests:
+                              properties:
+                                cpu:
+                                  type: string
+                                memory:
+                                  type: string
+                              type: object
+                          type: object
+                      type: object
+                  type: object
+                storage:
+                  properties:
+                    endpoint:
+                      type: string
+                    external:
+                      type: boolean
+                    replicas:
+                      format: int32
+                      type: integer
+                    resources:
+                      properties:
+                        limits:
+                          properties:
+                            cpu:
+                              type: string
+                            memory:
+                              type: string
+                          type: object
+                        requests:
+                          properties:
+                            cpu:
+                              type: string
+                            memory:
+                              type: string
+                          type: object
+                      type: object
+                  type: object
+              type: object
+          type: object
     standalone:
       components:
         standalone:
@@ -177,6 +339,69 @@ spec:
                 storage: {}
               required:
                 - storage
+      parametersSchema:
+        openAPIV3Schema:
+          properties:
+            dependencies:
+              properties:
+                etcd:
+                  properties:
+                    endpoints:
+                      items:
+                        type: string
+                      type: array
+                    external:
+                      type: boolean
+                    replicas:
+                      format: int32
+                      type: integer
+                    resources:
+                      properties:
+                        limits:
+                          properties:
+                            cpu:
+                              type: string
+                            memory:
+                              type: string
+                          type: object
+                        requests:
+                          properties:
+                            cpu:
+                              type: string
+                            memory:
+                              type: string
+                          type: object
+                      type: object
+                  type: object
+                storage:
+                  properties:
+                    endpoint:
+                      type: string
+                    external:
+                      type: boolean
+                    replicas:
+                      format: int32
+                      type: integer
+                    resources:
+                      properties:
+                        limits:
+                          properties:
+                            cpu:
+                              type: string
+                            memory:
+                              type: string
+                          type: object
+                        requests:
+                          properties:
+                            cpu:
+                              type: string
+                            memory:
+                              type: string
+                          type: object
+                      type: object
+                  type: object
+              type: object
+          type: object
   uiSchema:
     cluster:
       sections:
