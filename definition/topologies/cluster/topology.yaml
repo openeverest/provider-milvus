@@ -1,5 +1,8 @@
 # Cluster topology definition for Milvus.
 config:
+  # parametersSchema references a Go type in definition/topologies/cluster
+  # for topology parameters (bundled dependency sizing and external overrides).
+  parametersSchema: ClusterTopologyParameters
   components:
     proxy:
       type: milvus

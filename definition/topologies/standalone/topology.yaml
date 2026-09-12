@@ -1,5 +1,8 @@
 # Standalone topology definition for Milvus.
 config:
+  # parametersSchema references a Go type in definition/topologies/standalone
+  # for topology parameters (bundled dependency sizing and external overrides).
+  parametersSchema: StandaloneTopologyParameters
   components:
     standalone:
       type: milvus

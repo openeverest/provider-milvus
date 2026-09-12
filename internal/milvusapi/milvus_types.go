@@ -127,13 +127,33 @@ type InClusterConfig struct {
 	PVCDeletion    bool   `json:"pvcDeletion,omitempty"`
 }
 
+// MilvusEtcd configures the etcd metadata store dependency.
+type MilvusEtcd struct {
+	Endpoints []string         `json:"endpoints,omitempty"`
+	External  bool             `json:"external,omitempty"`
+	InCluster *InClusterConfig `json:"inCluster,omitempty"`
+}
+
+// MilvusPulsar configures the Pulsar message-stream dependency (cluster mode).
+type MilvusPulsar struct {
+	InCluster *InClusterConfig `json:"inCluster,omitempty"`
+	External  bool             `json:"external,omitempty"`
+	Endpoint  string           `json:"endpoint,omitempty"`
+}
+
 type MilvusStorage struct {
+	Type      string           `json:"type,omitempty"`
+	SecretRef string           `json:"secretRef,omitempty"`
+	Endpoint  string           `json:"endpoint,omitempty"`
 	InCluster *InClusterConfig `json:"inCluster,omitempty"`
 	External  bool             `json:"external,omitempty"`
 }
 
 type MilvusDependencies struct {
-	Storage MilvusStorage `json:"storage,omitempty"`
+	Etcd          MilvusEtcd    `json:"etcd,omitempty"`
+	MsgStreamType string        `json:"msgStreamType,omitempty"`
+	Pulsar        MilvusPulsar  `json:"pulsar,omitempty"`
+	Storage       MilvusStorage `json:"storage,omitempty"`
 }
 
 // MilvusStatus is the observed state of a Milvus deployment.
