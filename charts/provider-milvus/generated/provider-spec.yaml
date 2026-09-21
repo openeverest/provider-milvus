@@ -141,6 +141,7 @@ spec:
                 replicas:
                   minimum: 1
                 resources: {}
+                service: {}
         queryCoord:
           supportedFields:
             openAPIV3Schema:
@@ -174,6 +175,7 @@ spec:
                 replicas:
                   minimum: 1
                 resources: {}
+                service: {}
                 storage: {}
               required:
                 - storage
@@ -264,6 +266,19 @@ spec:
           label: Data nodes
         proxy:
           components:
+            externalAccess:
+              fieldParams:
+                defaultValue: ClusterIP
+                label: External access
+                options:
+                  - label: ClusterIP
+                    value: ClusterIP
+                  - label: NodePort
+                    value: NodePort
+                  - label: LoadBalancer
+                    value: LoadBalancer
+              path: spec.components.proxy.service.serviceType
+              uiType: select
             replicas:
               fieldParams:
                 defaultValue: 1
@@ -299,6 +314,7 @@ spec:
           componentsOrder:
             - replicas
             - resources
+            - externalAccess
           description: Configure the proxy.
           label: Proxy
         queryNodes:
@@ -413,6 +429,19 @@ spec:
               validation:
                 max: 500
                 min: 10
+            externalAccess:
+              fieldParams:
+                defaultValue: ClusterIP
+                label: External access
+                options:
+                  - label: ClusterIP
+                    value: ClusterIP
+                  - label: NodePort
+                    value: NodePort
+                  - label: LoadBalancer
+                    value: LoadBalancer
+              path: spec.components.standalone.service.serviceType
+              uiType: select
             memory:
               fieldParams:
                 badge: Gi

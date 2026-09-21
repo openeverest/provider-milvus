@@ -8,6 +8,7 @@ config:
         properties:
           replicas: {minimum: 1}
           resources: {}
+          service: {}
     rootCoord:
       type: milvus
       replicas: 1
@@ -162,9 +163,23 @@ ui:
                 badgeToApi: true
               validation:
                 min: 0.5
+        externalAccess:
+          uiType: select
+          path: spec.components.proxy.service.serviceType
+          fieldParams:
+            label: External access
+            defaultValue: ClusterIP
+            options:
+              - label: ClusterIP
+                value: ClusterIP
+              - label: NodePort
+                value: NodePort
+              - label: LoadBalancer
+                value: LoadBalancer
       componentsOrder:
         - replicas
         - resources
+        - externalAccess
     queryNodes:
       label: Query nodes
       description: Configure the query nodes.

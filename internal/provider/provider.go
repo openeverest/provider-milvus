@@ -232,6 +232,7 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 				Port: 19530,
 			},
 		}
+		applyServiceExposure(&spec.Com.Standalone.ServiceComponent, instance.Spec.Components[common.ComponentStandalone].Service)
 		setDependencyStorageSize(&spec, storageSizeFromComponent(instance.Spec.Components, common.ComponentStandalone))
 		return spec, nil
 	}
@@ -245,6 +246,7 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 			Port: 19530,
 		},
 	}
+	applyServiceExposure(&spec.Com.Proxy.ServiceComponent, instance.Spec.Components[common.ComponentProxy].Service)
 
 	for _, name := range []string{common.ComponentRootCoord, common.ComponentIndexCoord, common.ComponentDataCoord, common.ComponentQueryCoord} {
 		replicas := componentReplicasOrDefault(instance.Spec.Components, name, 1)
@@ -319,17 +321,9 @@ func (p *Provider) Status(c *controller.Context) (controller.Status, error) {
 
 	switch cr.Status.Status {
 	case milvusapi.StatusHealthy:
-		endpoint := cr.Status.Endpoint
-		if endpoint == "" {
-			endpoint = fmt.Sprintf("%s-milvus.%s.svc.cluster.local:19530", cr.Name, cr.Namespace)
-		}
-		host, port := endpoint, "19530"
-		if idx := strings.Index(endpoint, ":"); idx >= 0 {
-			host = endpoint[:idx]
-			port = endpoint[idx+1:]
-		}
-		if port == "" {
-			port = "19530"
+		host, port, ready, message := resolveEndpoint(c, cr)
+		if !ready {
+			return controller.Provisioning(message), nil
 		}
 
 		username, password, err := ensureCredentials(c)

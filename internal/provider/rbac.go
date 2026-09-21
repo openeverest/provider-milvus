@@ -22,4 +22,6 @@ package provider
 // Supporting resources created by the operator and used by the provider
 // while reconciling the instance.
 // +kubebuilder:rbac:groups="",resources=services;configmaps;persistentvolumeclaims;pods,verbs=get;list;watch;create;update;patch;delete
+// Nodes are read to resolve a reachable address for NodePort-exposed instances.
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments;statefulsets,verbs=get;list;watch;create;update;patch;delete

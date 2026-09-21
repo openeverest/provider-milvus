@@ -47,6 +47,11 @@ type Component struct {
 type ServiceComponent struct {
 	Component `json:",inline"`
 	Port      int32 `json:"port,omitempty"`
+	// ServiceType controls how the operator exposes the gRPC service.
+	ServiceType corev1.ServiceType `json:"serviceType,omitempty"`
+	// ServiceAnnotations are applied to the exposed Service (e.g. cloud
+	// load-balancer settings).
+	ServiceAnnotations map[string]string `json:"serviceAnnotations,omitempty"`
 }
 
 // MilvusStandalone defines the standalone deployment component.

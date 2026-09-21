@@ -10,6 +10,7 @@ config:
           replicas: {minimum: 1}
           resources: {}
           storage: {}
+          service: {}
 ui:
   sections:
     basicInfo:
@@ -69,6 +70,19 @@ ui:
           validation:
             min: 0.5
             required: true
+        externalAccess:
+          uiType: select
+          path: spec.components.standalone.service.serviceType
+          fieldParams:
+            label: External access
+            defaultValue: ClusterIP
+            options:
+              - label: ClusterIP
+                value: ClusterIP
+              - label: NodePort
+                value: NodePort
+              - label: LoadBalancer
+                value: LoadBalancer
     advanced:
       label: "Advanced configuration"
       description: "Configure advanced Milvus engine settings."

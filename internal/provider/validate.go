@@ -76,11 +76,34 @@ func validateInstance(c *controller.Context) error {
 		return err
 	}
 
+	if err := validateServiceExposure(instance.Spec.Components, topologyType); err != nil {
+		return err
+	}
+
 	if _, err := milvusEngineConfig(c); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// validateServiceExposure rejects unsupported service types on the component
+// that owns the client-facing service (standalone or proxy).
+func validateServiceExposure(components map[string]corev1alpha1.ComponentSpec, topologyType string) error {
+	name := exposedComponentName(topologyType)
+	component := components[name]
+	if component.Service == nil {
+		return nil
+	}
+	switch component.Service.ServiceType {
+	case "",
+		corev1.ServiceTypeClusterIP,
+		corev1.ServiceTypeLoadBalancer,
+		corev1.ServiceTypeNodePort:
+		return nil
+	default:
+		return fmt.Errorf("component %q service.serviceType must be one of ClusterIP, LoadBalancer or NodePort", name)
+	}
 }
 
 // validateComponentsForTopology rejects components that do not belong to the
