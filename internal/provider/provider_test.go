@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -30,6 +31,8 @@ func newTestContext(t *testing.T, spec corev1alpha1.InstanceSpec) *controller.Co
 	t.Helper()
 	scheme := runtime.NewScheme()
 	require.NoError(t, corev1alpha1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, milvusapi.AddToScheme(scheme))
 
 	instance := &corev1alpha1.Instance{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-milvus", Namespace: "db"},
@@ -174,4 +177,37 @@ func TestBuildMilvusSpecConfiguration(t *testing.T) {
 		require.NoError(t, err)
 		assert.Nil(t, spec.Conf)
 	})
+}
+
+func TestSyncSeedsAuthAndStatusSurfacesCredentials(t *testing.T) {
+	c := newTestContext(t, corev1alpha1.InstanceSpec{
+		Topology: &corev1alpha1.TopologySpec{Type: "standalone"},
+		Components: map[string]corev1alpha1.ComponentSpec{
+			common.ComponentStandalone: {},
+		},
+	})
+	p := New()
+
+	require.NoError(t, p.Sync(c))
+
+	cr := &milvusapi.Milvus{}
+	require.NoError(t, c.Get(cr, c.Name()))
+	security := cr.Spec.Conf["common"].(map[string]any)["security"].(map[string]any)
+	assert.Equal(t, true, security["authorizationEnabled"])
+	password, ok := security["defaultRootPassword"].(string)
+	require.True(t, ok)
+	assert.NotEmpty(t, password)
+
+	cr.Status.Status = milvusapi.StatusHealthy
+	require.NoError(t, c.Apply(cr))
+
+	status, err := p.Status(c)
+	require.NoError(t, err)
+
+	cd := status.ConnectionDetails
+	assert.Equal(t, rootUsername, cd.Username)
+	assert.Equal(t, password, cd.Password, "connection password must match the seeded root password")
+	assert.Equal(t, "test-milvus-milvus.db.svc.cluster.local", cd.Host)
+	assert.Equal(t, "19530", cd.Port)
+	assert.Equal(t, rootUsername+":"+password, cd.AdditionalProperties["token"])
 }

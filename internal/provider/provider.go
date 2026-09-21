@@ -289,10 +289,16 @@ func (p *Provider) Sync(c *controller.Context) error {
 	l := log.FromContext(c.Context())
 	l.Info("Syncing instance", "name", c.Name())
 
+	_, password, err := ensureCredentials(c)
+	if err != nil {
+		return err
+	}
+
 	spec, err := BuildMilvusSpec(c)
 	if err != nil {
 		return err
 	}
+	applyAuthConfig(&spec, password)
 
 	cr := &milvusapi.Milvus{
 		ObjectMeta: c.ObjectMeta(c.Name()),
@@ -315,7 +321,7 @@ func (p *Provider) Status(c *controller.Context) (controller.Status, error) {
 	case milvusapi.StatusHealthy:
 		endpoint := cr.Status.Endpoint
 		if endpoint == "" {
-			endpoint = fmt.Sprintf("%s.%s.svc.cluster.local:19530", cr.Name, cr.Namespace)
+			endpoint = fmt.Sprintf("%s-milvus.%s.svc.cluster.local:19530", cr.Name, cr.Namespace)
 		}
 		host, port := endpoint, "19530"
 		if idx := strings.Index(endpoint, ":"); idx >= 0 {
@@ -325,13 +331,23 @@ func (p *Provider) Status(c *controller.Context) (controller.Status, error) {
 		if port == "" {
 			port = "19530"
 		}
-		uri := fmt.Sprintf("tcp://%s:%s", host, port)
+
+		username, password, err := ensureCredentials(c)
+		if err != nil {
+			return controller.Status{}, err
+		}
+
 		return controller.ReadyWithConnectionDetails(controller.ConnectionDetails{
 			Type:     "milvus",
 			Provider: common.ProviderName,
 			Host:     host,
 			Port:     port,
-			URI:      uri,
+			Username: username,
+			Password: password,
+			URI:      fmt.Sprintf("http://%s:%s", host, port),
+			AdditionalProperties: map[string]string{
+				"token": fmt.Sprintf("%s:%s", username, password),
+			},
 		}), nil
 	case milvusapi.StatusPending, milvusapi.StatusDeleting:
 		return controller.Provisioning("Milvus is being initialized or updated"), nil
