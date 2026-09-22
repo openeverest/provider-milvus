@@ -264,77 +264,7 @@ func (p *Provider) Sync(c *controller.Context) error {
 		ObjectMeta: c.ObjectMeta(c.Name()),
 		Spec:       spec,
 	}
-	preserveOperatorMetadata(c, cr)
-	preserveOperatorDependencyValues(c, cr)
 	return c.Apply(cr)
-}
-
-// preserveOperatorMetadata carries the milvus-operator's own labels and
-// annotations (the milvus.io/* namespace) forward across the provider's
-// full-object apply. The operator classifies the CR via the
-// milvus.io/operator-version label and gates a one-time dependency-value
-// migration on milvus.io/dependency-values-* annotations. Dropping them each
-// sync demotes the CR back to "legacy", retriggering that migration and putting
-// the provider and operator into a reconcile battle.
-func preserveOperatorMetadata(c *controller.Context, cr *milvusapi.Milvus) {
-	existing := &milvusapi.Milvus{}
-	if err := c.Get(existing, c.Name()); err != nil {
-		// Not created yet (create path) or transient read error: nothing to carry.
-		return
-	}
-	cr.Labels = mergeOperatorMetadata(cr.Labels, existing.Labels)
-	cr.Annotations = mergeOperatorMetadata(cr.Annotations, existing.Annotations)
-}
-
-// mergeOperatorMetadata copies milvus.io/-prefixed keys from src into dst,
-// without overwriting keys the provider already set.
-func mergeOperatorMetadata(dst, src map[string]string) map[string]string {
-	const operatorPrefix = "milvus.io/"
-	for k, v := range src {
-		if !strings.HasPrefix(k, operatorPrefix) {
-			continue
-		}
-		if dst == nil {
-			dst = map[string]string{}
-		}
-		if _, ok := dst[k]; !ok {
-			dst[k] = v
-		}
-	}
-	return dst
-}
-
-// preserveOperatorDependencyValues carries operator-injected keys inside each
-// bundled dependency's inCluster.values (credentials, serviceAccount and other
-// values the operator merges in) forward across the provider's full-object
-// apply. Without this the provider's overwrite would strip them every sync and
-// fight the operator over spec.dependencies.*.inCluster.values.
-func preserveOperatorDependencyValues(c *controller.Context, cr *milvusapi.Milvus) {
-	if cr.Spec.Dep == nil {
-		return
-	}
-	existing := &milvusapi.Milvus{}
-	if err := c.Get(existing, c.Name()); err != nil || existing.Spec.Dep == nil {
-		return
-	}
-	mergeInClusterValues(existing.Spec.Dep.Etcd.InCluster, cr.Spec.Dep.Etcd.InCluster)
-	mergeInClusterValues(existing.Spec.Dep.Pulsar.InCluster, cr.Spec.Dep.Pulsar.InCluster)
-	mergeInClusterValues(existing.Spec.Dep.Storage.InCluster, cr.Spec.Dep.Storage.InCluster)
-}
-
-// mergeInClusterValues keeps the operator's existing values as the base and
-// overlays the provider's values on top, so provider-owned keys win while
-// operator-only keys survive.
-func mergeInClusterValues(existing, desired *milvusapi.InClusterConfig) {
-	if existing == nil || desired == nil || len(existing.Values) == 0 {
-		return
-	}
-	merged := milvusapi.Values{}
-	for k, v := range existing.Values {
-		merged[k] = v
-	}
-	deepMergeValues(merged, desired.Values)
-	desired.Values = merged
 }
 
 // Status computes the current status of the database instance.
