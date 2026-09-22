@@ -15,6 +15,7 @@ import (
 	"github.com/openeverest/provider-milvus/definition/topologies/cluster"
 	"github.com/openeverest/provider-milvus/definition/topologies/standalone"
 	"github.com/openeverest/provider-milvus/internal/common"
+	"github.com/openeverest/provider-milvus/internal/milvusapi"
 )
 
 func topologyParams(t *testing.T, v any) *runtime.RawExtension {
@@ -38,8 +39,8 @@ func TestBuildDependenciesStandaloneDefaults(t *testing.T) {
 	require.NotNil(t, spec.Dep.Storage.InCluster)
 	assert.Equal(t, "standalone", spec.Dep.Storage.InCluster.Values["mode"])
 	assert.Equal(t, map[string]any{"size": "10Gi"}, spec.Dep.Storage.InCluster.Values["persistence"])
-	assert.Equal(t, map[string]any{"repository": "quay.io/minio/minio"}, spec.Dep.Storage.InCluster.Values["image"])
-	assert.Equal(t, map[string]any{"repository": "quay.io/minio/mc"}, spec.Dep.Storage.InCluster.Values["mcImage"])
+	assert.Equal(t, map[string]any{"repository": "pgsty/silo", "tag": "RELEASE.2026-09-03T13-18-01Z"}, spec.Dep.Storage.InCluster.Values["image"])
+	assert.Equal(t, map[string]any{"repository": "pgsty/mc", "tag": "RELEASE.2026-09-13T00-00-00Z"}, spec.Dep.Storage.InCluster.Values["mcImage"])
 
 	// Standalone uses embedded rocksmq: no Pulsar dependency is configured.
 	assert.Nil(t, spec.Dep.Pulsar.InCluster)
@@ -229,6 +230,26 @@ func TestBuildDependenciesNumericResourceQuantities(t *testing.T) {
 	etcdRes, ok := spec.Dep.Etcd.InCluster.Values["resources"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, map[string]any{"cpu": "0.1", "memory": "256Mi"}, etcdRes["requests"])
+}
+
+func TestBuildDependenciesDeletionPolicy(t *testing.T) {
+	c := newTestContext(t, corev1alpha1.InstanceSpec{
+		Topology: &corev1alpha1.TopologySpec{Type: "cluster"},
+	})
+	spec, err := BuildMilvusSpec(c)
+	require.NoError(t, err)
+
+	// Bundled dependencies are torn down (pods + PVCs) with the Instance, so
+	// deleting an Instance leaves no orphaned StatefulSets or volumes.
+	for name, inCluster := range map[string]*milvusapi.InClusterConfig{
+		"etcd":    spec.Dep.Etcd.InCluster,
+		"storage": spec.Dep.Storage.InCluster,
+		"pulsar":  spec.Dep.Pulsar.InCluster,
+	} {
+		require.NotNil(t, inCluster, name)
+		assert.Equal(t, "Delete", inCluster.DeletionPolicy, name)
+		assert.True(t, inCluster.PVCDeletion, name)
+	}
 }
 
 func TestValidateDependencies(t *testing.T) {

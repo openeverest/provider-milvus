@@ -89,6 +89,19 @@ func buildDependencies(c *controller.Context, topologyType string) *milvusapi.Mi
 	return dep
 }
 
+// bundledInCluster wraps rendered Helm values so removing the Instance (and the
+// owned Milvus CR) tears the bundled dependency down — StatefulSets, Pods and
+// PVCs — instead of leaking orphans. The operator otherwise defaults bundled
+// dependencies to Retain. This matches other providers, which delete both pods
+// and volumes on teardown.
+func bundledInCluster(values milvusapi.Values) *milvusapi.InClusterConfig {
+	return &milvusapi.InClusterConfig{
+		Values:         values,
+		DeletionPolicy: "Delete",
+		PVCDeletion:    true,
+	}
+}
+
 // buildEtcd renders the etcd dependency, switching to external endpoints when
 // requested, otherwise sizing the bundled cluster.
 func buildEtcd(param *dependencies.Etcd, topologyType string) milvusapi.MilvusEtcd {
@@ -120,7 +133,7 @@ func buildEtcd(param *dependencies.Etcd, topologyType string) milvusapi.MilvusEt
 	if persistenceSize != "" {
 		values["persistence"] = map[string]any{"size": persistenceSize}
 	}
-	return milvusapi.MilvusEtcd{InCluster: &milvusapi.InClusterConfig{Values: values}}
+	return milvusapi.MilvusEtcd{InCluster: bundledInCluster(values)}
 }
 
 // buildStorage renders the MinIO object-storage dependency. External storage
@@ -152,16 +165,18 @@ func buildStorage(param *dependencies.Storage) milvusapi.MilvusStorage {
 	values := milvusapi.Values{
 		"mode":     minioMode(replicas),
 		"replicas": int(replicas),
-		// Docker Hub's minio/minio and minio/mc repos are gated; pull the bundled
-		// MinIO from the public quay.io mirror instead, keeping the operator's tags.
-		"image":       map[string]any{"repository": "quay.io/minio/minio"},
-		"mcImage":     map[string]any{"repository": "quay.io/minio/mc"},
+		// Docker Hub's minio/minio is gated and the milvus-helm chart's default
+		// quay.io/minio tag (RELEASE.2021-02-14T04-01-33Z) has been retired, so a
+		// tag-less override falls back to an unpullable image. Pin the operator's
+		// current MinIO-compatible images (pgsty/silo, pgsty/mc) with explicit tags.
+		"image":       map[string]any{"repository": "pgsty/silo", "tag": "RELEASE.2026-09-03T13-18-01Z"},
+		"mcImage":     map[string]any{"repository": "pgsty/mc", "tag": "RELEASE.2026-09-13T00-00-00Z"},
 		"persistence": map[string]any{"size": persistenceSize},
 	}
 	if res := resourcesToValues(resources); res != nil {
 		values["resources"] = res
 	}
-	return milvusapi.MilvusStorage{InCluster: &milvusapi.InClusterConfig{Values: values}}
+	return milvusapi.MilvusStorage{InCluster: bundledInCluster(values)}
 }
 
 // buildPulsar renders the Pulsar message-stream dependency, sizing each
@@ -189,7 +204,7 @@ func buildPulsar(param *dependencies.Pulsar) milvusapi.MilvusPulsar {
 		"zookeeper":  zooKeeperValues(zookeeper),
 		"proxy":      pulsarComponentValues(proxy),
 	}
-	return milvusapi.MilvusPulsar{InCluster: &milvusapi.InClusterConfig{Values: values}}
+	return milvusapi.MilvusPulsar{InCluster: bundledInCluster(values)}
 }
 
 // minioMode maps a replica count to the MinIO deployment mode.
