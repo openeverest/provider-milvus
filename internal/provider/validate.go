@@ -278,14 +278,20 @@ func validateDependencies(c *controller.Context, topologyType string) error {
 
 	if topologyType == "cluster" {
 		var params cluster.ClusterTopologyParameters
-		if c.TryDecodeTopologyParameters(&params) && params.Dependencies != nil {
+		if err := decodeTopologyParametersIfPresent(c, &params); err != nil {
+			return err
+		}
+		if params.Dependencies != nil {
 			etcd = params.Dependencies.Etcd
 			pulsar = params.Dependencies.Pulsar
 			storage = params.Dependencies.Storage
 		}
 	} else {
 		var params standalone.StandaloneTopologyParameters
-		if c.TryDecodeTopologyParameters(&params) && params.Dependencies != nil {
+		if err := decodeTopologyParametersIfPresent(c, &params); err != nil {
+			return err
+		}
+		if params.Dependencies != nil {
 			etcd = params.Dependencies.Etcd
 			storage = params.Dependencies.Storage
 		}
@@ -298,6 +304,20 @@ func validateDependencies(c *controller.Context, topologyType string) error {
 		return err
 	}
 	return validateStorageDependency(storage)
+}
+
+// decodeTopologyParametersIfPresent decodes the instance's topology parameters
+// when they are set, surfacing malformed input as an error instead of silently
+// falling back to defaults (which would deploy a spec that ignores the request).
+func decodeTopologyParametersIfPresent(c *controller.Context, target any) error {
+	topology := c.Instance().Spec.Topology
+	if topology == nil || topology.Parameters == nil || topology.Parameters.Raw == nil {
+		return nil
+	}
+	if err := c.DecodeTopologyParameters(target); err != nil {
+		return fmt.Errorf("invalid topology parameters: %w", err)
+	}
+	return nil
 }
 
 func validateEtcdDependency(etcd *dependencies.Etcd) error {
@@ -445,14 +465,14 @@ func parseResourceList(name, kind string, list *dependencies.ResourceList) (core
 		return result, nil
 	}
 	if list.CPU != "" {
-		cpu, err := resource.ParseQuantity(list.CPU)
+		cpu, err := resource.ParseQuantity(string(list.CPU))
 		if err != nil {
 			return nil, fmt.Errorf("%s.resources.%s.cpu %q is invalid: %w", name, kind, list.CPU, err)
 		}
 		result[corev1.ResourceCPU] = cpu
 	}
 	if list.Memory != "" {
-		mem, err := resource.ParseQuantity(list.Memory)
+		mem, err := resource.ParseQuantity(string(list.Memory))
 		if err != nil {
 			return nil, fmt.Errorf("%s.resources.%s.memory %q is invalid: %w", name, kind, list.Memory, err)
 		}

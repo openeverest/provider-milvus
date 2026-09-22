@@ -350,10 +350,10 @@ func resourceListToValues(list *dependencies.ResourceList) map[string]any {
 	}
 	values := map[string]any{}
 	if list.CPU != "" {
-		values["cpu"] = list.CPU
+		values["cpu"] = string(list.CPU)
 	}
 	if list.Memory != "" {
-		values["memory"] = list.Memory
+		values["memory"] = string(list.Memory)
 	}
 	if len(values) == 0 {
 		return nil

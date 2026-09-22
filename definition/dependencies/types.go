@@ -8,13 +8,41 @@
 // +k8s:openapi-gen=true
 package dependencies
 
+import (
+	"bytes"
+	"encoding/json"
+)
+
+// Quantity is a Kubernetes resource quantity such as "500m", "1", or "512Mi".
+// It decodes from either a JSON string or a bare number, so numeric UI inputs
+// (e.g. cpu: 0.1) do not fail the whole topology-parameters block.
+type Quantity string
+
+// UnmarshalJSON accepts both a quoted string and a bare JSON number.
+func (q *Quantity) UnmarshalJSON(data []byte) error {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || string(data) == "null" {
+		return nil
+	}
+	if data[0] == '"' {
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			return err
+		}
+		*q = Quantity(s)
+		return nil
+	}
+	*q = Quantity(data)
+	return nil
+}
+
 // ResourceList maps CPU and memory quantities as Kubernetes resource strings
 // (e.g. "500m", "2Gi"). Empty fields are omitted, letting the chart default apply.
 type ResourceList struct {
 	// CPU quantity, e.g. "500m" or "1".
-	CPU string `json:"cpu,omitempty"`
+	CPU Quantity `json:"cpu,omitempty"`
 	// Memory quantity, e.g. "512Mi" or "2Gi".
-	Memory string `json:"memory,omitempty"`
+	Memory Quantity `json:"memory,omitempty"`
 }
 
 // Resources holds resource requests and limits for a dependency component.

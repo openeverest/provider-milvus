@@ -219,6 +219,27 @@ func TestBuildDependenciesStorageDefaultPersistence(t *testing.T) {
 	assert.Equal(t, map[string]any{"size": "10Gi"}, spec.Dep.Storage.InCluster.Values["persistence"])
 }
 
+func TestBuildDependenciesNumericResourceQuantities(t *testing.T) {
+	// The UI writes a unit-less CPU field as a bare JSON number (cpu: 0.1).
+	// The dependency block must still decode and win over defaults, instead of
+	// json.Unmarshal failing and the whole block silently reverting to defaults.
+	raw := []byte(`{"dependencies":{"etcd":{"replicas":1,"resources":{"requests":{"cpu":0.1,"memory":"256Mi"}}}}}`)
+	c := newTestContext(t, corev1alpha1.InstanceSpec{
+		Topology: &corev1alpha1.TopologySpec{Type: "cluster", Parameters: &runtime.RawExtension{Raw: raw}},
+		Components: map[string]corev1alpha1.ComponentSpec{
+			common.ComponentDataNode: {Storage: storage(t, "50Gi")},
+		},
+	})
+	spec, err := BuildMilvusSpec(c)
+	require.NoError(t, err)
+
+	// 1, not the cluster default of 3.
+	assert.Equal(t, 1, spec.Dep.Etcd.InCluster.Values["replicaCount"])
+	etcdRes, ok := spec.Dep.Etcd.InCluster.Values["resources"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, map[string]any{"cpu": "0.1", "memory": "256Mi"}, etcdRes["requests"])
+}
+
 func TestValidateDependencies(t *testing.T) {
 	tests := []struct {
 		name    string
