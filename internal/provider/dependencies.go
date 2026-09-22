@@ -58,9 +58,8 @@ var (
 
 // buildDependencies renders the Milvus dependency spec (etcd, Pulsar, MinIO)
 // from the topology parameters, applying per-topology defaults and honouring
-// external-dependency overrides. persistenceSize, when set, is the object
-// storage PVC size derived from the data-bearing component.
-func buildDependencies(c *controller.Context, topologyType, persistenceSize string) *milvusapi.MilvusDependencies {
+// external-dependency overrides.
+func buildDependencies(c *controller.Context, topologyType string) *milvusapi.MilvusDependencies {
 	var etcdParam *dependencies.Etcd
 	var pulsarParam *dependencies.Pulsar
 	var storageParam *dependencies.Storage
@@ -82,7 +81,7 @@ func buildDependencies(c *controller.Context, topologyType, persistenceSize stri
 
 	dep := &milvusapi.MilvusDependencies{
 		Etcd:    buildEtcd(etcdParam, topologyType),
-		Storage: buildStorage(storageParam, persistenceSize),
+		Storage: buildStorage(storageParam),
 	}
 	if topologyType == "cluster" {
 		dep.Pulsar = buildPulsar(pulsarParam)
@@ -127,27 +126,27 @@ func buildEtcd(param *dependencies.Etcd, topologyType string) milvusapi.MilvusEt
 // buildStorage renders the MinIO object-storage dependency. External storage
 // bypasses sizing; bundled storage carries the PVC size plus resource and
 // replica tuning (a replica count above one enables MinIO distributed mode).
-func buildStorage(param *dependencies.Storage, persistenceSize string) milvusapi.MilvusStorage {
+// buildStorage renders the MinIO object-storage dependency. External storage
+// bypasses sizing; bundled storage carries the PVC size plus resource and
+// replica tuning (a replica count above one enables MinIO distributed mode).
+// The PVC size comes solely from the storage dependency parameter, falling back
+// to a predictable default.
+func buildStorage(param *dependencies.Storage) milvusapi.MilvusStorage {
 	if param != nil && param.External {
 		return milvusapi.MilvusStorage{External: true, Endpoint: param.Endpoint}
 	}
 
 	replicas := defaultStorageReplicas
 	resources := defaultStorageResources
+	persistenceSize := defaultStoragePersistence
 	if param != nil {
 		if param.Replicas != nil {
 			replicas = *param.Replicas
 		}
 		resources = mergeResources(param.Resources, defaultStorageResources)
-	}
-
-	// Explicit dependency persistence overrides the data-bearing component's
-	// storage size; otherwise fall back to a predictable default.
-	if param != nil && param.Persistence != nil && param.Persistence.Size != "" {
-		persistenceSize = param.Persistence.Size
-	}
-	if persistenceSize == "" {
-		persistenceSize = defaultStoragePersistence
+		if param.Persistence != nil && param.Persistence.Size != "" {
+			persistenceSize = param.Persistence.Size
+		}
 	}
 
 	values := milvusapi.Values{
@@ -155,8 +154,8 @@ func buildStorage(param *dependencies.Storage, persistenceSize string) milvusapi
 		"replicas": int(replicas),
 		// Docker Hub's minio/minio and minio/mc repos are gated; pull the bundled
 		// MinIO from the public quay.io mirror instead, keeping the operator's tags.
-		"image":   map[string]any{"repository": "quay.io/minio/minio"},
-		"mcImage": map[string]any{"repository": "quay.io/minio/mc"},
+		"image":       map[string]any{"repository": "quay.io/minio/minio"},
+		"mcImage":     map[string]any{"repository": "quay.io/minio/mc"},
 		"persistence": map[string]any{"size": persistenceSize},
 	}
 	if res := resourcesToValues(resources); res != nil {

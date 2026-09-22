@@ -16,6 +16,8 @@ import (
 	corev1alpha1 "github.com/openeverest/openeverest/v2/api/core/v1alpha1"
 	"github.com/openeverest/openeverest/v2/provider-runtime/controller"
 
+	"github.com/openeverest/provider-milvus/definition/dependencies"
+	"github.com/openeverest/provider-milvus/definition/topologies/standalone"
 	"github.com/openeverest/provider-milvus/internal/common"
 	"github.com/openeverest/provider-milvus/internal/milvusapi"
 )
@@ -128,18 +130,6 @@ func TestValidateInstance(t *testing.T) {
 			wantErr: "resources.requests.cpu",
 		},
 		{
-			name: "storage below minimum",
-			spec: corev1alpha1.InstanceSpec{
-				Topology: &corev1alpha1.TopologySpec{Type: "standalone"},
-				Components: map[string]corev1alpha1.ComponentSpec{
-					common.ComponentStandalone: {
-						Storage: storage(t, "512Mi"),
-					},
-				},
-			},
-			wantErr: "storage.size must be >= 1Gi",
-		},
-		{
 			name: "cluster coordinator replicas below one",
 			spec: corev1alpha1.InstanceSpec{
 				Topology: &corev1alpha1.TopologySpec{Type: "cluster"},
@@ -215,11 +205,13 @@ func TestValidateStorageNotDecreased(t *testing.T) {
 	}
 
 	standaloneSpec := func(size string) corev1alpha1.InstanceSpec {
-		return corev1alpha1.InstanceSpec{
-			Topology: &corev1alpha1.TopologySpec{Type: "standalone"},
-			Components: map[string]corev1alpha1.ComponentSpec{
-				common.ComponentStandalone: {Storage: storage(t, size)},
+		params := standalone.StandaloneTopologyParameters{
+			Dependencies: &standalone.StandaloneDependencies{
+				Storage: &dependencies.Storage{Persistence: &dependencies.Persistence{Size: size}},
 			},
+		}
+		return corev1alpha1.InstanceSpec{
+			Topology: &corev1alpha1.TopologySpec{Type: "standalone", Parameters: topologyParams(t, params)},
 		}
 	}
 

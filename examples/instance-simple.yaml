@@ -10,5 +10,3 @@ spec:
     standalone:
       type: milvus
       replicas: 1
-      storage:
-        size: 10Gi

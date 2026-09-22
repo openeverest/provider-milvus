@@ -134,9 +134,6 @@ func validateComponentsForTopology(components map[string]corev1alpha1.ComponentS
 		if err := validateComponentResources(name, component); err != nil {
 			return err
 		}
-		if err := validateComponentStorage(name, component); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -180,18 +177,6 @@ func validateRequestNotAboveLimit(name string, resourceName corev1.ResourceName,
 	return nil
 }
 
-// validateComponentStorage enforces the minimum storage size when storage is
-// specified for a component.
-func validateComponentStorage(name string, component corev1alpha1.ComponentSpec) error {
-	if component.Storage == nil || component.Storage.Size.IsZero() {
-		return nil
-	}
-	if component.Storage.Size.Cmp(minStorageSize) < 0 {
-		return fmt.Errorf("component %q storage.size must be >= %s", name, minStorageSize.String())
-	}
-	return nil
-}
-
 // validateTopologyRules enforces topology-specific composition rules, such as
 // requiring at least one replica for every coordinator in cluster mode.
 func validateTopologyRules(components map[string]corev1alpha1.ComponentSpec, topologyType string) error {
@@ -214,7 +199,7 @@ func validateTopologyRules(components map[string]corev1alpha1.ComponentSpec, top
 // edit. It compares the requested size against the size already applied to the
 // existing Milvus CR; storage may only grow or stay the same.
 func validateStorageNotDecreased(c *controller.Context, topologyType string) error {
-	requested := requestedStorageSize(c.Instance().Spec.Components, topologyType)
+	requested := requestedStorageSize(c, topologyType)
 	if requested == "" {
 		return nil
 	}
@@ -243,13 +228,35 @@ func validateStorageNotDecreased(c *controller.Context, topologyType string) err
 	return nil
 }
 
-// requestedStorageSize returns the storage size the spec would apply, matching
-// the component precedence used by BuildMilvusSpec.
-func requestedStorageSize(components map[string]corev1alpha1.ComponentSpec, topologyType string) string {
-	if topologyType == "cluster" {
-		return storageSizeFromComponents(components, common.ComponentDataNode, common.ComponentQueryNode)
+// requestedStorageSize returns the object-storage PVC size the spec would apply,
+// mirroring buildStorage: the explicit storage dependency persistence size, or
+// the default. External storage has no bundled PVC.
+func requestedStorageSize(c *controller.Context, topologyType string) string {
+	storageParam := storageDependencyParam(c, topologyType)
+	if storageParam != nil && storageParam.External {
+		return ""
 	}
-	return storageSizeFromComponent(components, common.ComponentStandalone)
+	if storageParam != nil && storageParam.Persistence != nil && storageParam.Persistence.Size != "" {
+		return storageParam.Persistence.Size
+	}
+	return defaultStoragePersistence
+}
+
+// storageDependencyParam decodes the storage dependency parameter for the
+// topology, returning nil when unset.
+func storageDependencyParam(c *controller.Context, topologyType string) *dependencies.Storage {
+	if topologyType == "cluster" {
+		var params cluster.ClusterTopologyParameters
+		if c.TryDecodeTopologyParameters(&params) && params.Dependencies != nil {
+			return params.Dependencies.Storage
+		}
+		return nil
+	}
+	var params standalone.StandaloneTopologyParameters
+	if c.TryDecodeTopologyParameters(&params) && params.Dependencies != nil {
+		return params.Dependencies.Storage
+	}
+	return nil
 }
 
 // currentStorageSize extracts the persistence size applied to an existing

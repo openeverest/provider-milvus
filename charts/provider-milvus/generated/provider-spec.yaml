@@ -110,9 +110,6 @@ spec:
                 replicas:
                   minimum: 1
                 resources: {}
-                storage: {}
-              required:
-                - storage
         mixCoord:
           supportedFields:
             openAPIV3Schema:
@@ -135,9 +132,6 @@ spec:
                 replicas:
                   minimum: 1
                 resources: {}
-                storage: {}
-              required:
-                - storage
         streamingNode:
           supportedFields:
             openAPIV3Schema:
@@ -342,9 +336,6 @@ spec:
                   minimum: 1
                 resources: {}
                 service: {}
-                storage: {}
-              required:
-                - storage
       parametersSchema:
         openAPIV3Schema:
           properties:
@@ -524,17 +515,6 @@ spec:
                   uiType: number
                   validation:
                     min: 0.5
-                storage:
-                  fieldParams:
-                    badge: Gi
-                    badgeToApi: true
-                    defaultValue: 20
-                    label: Storage
-                  path: spec.components.dataNode.storage.size
-                  uiType: number
-                  validation:
-                    int: true
-                    min: 1
               groupType: line
               uiType: group
           componentsOrder:
@@ -957,17 +937,6 @@ spec:
                   uiType: number
                   validation:
                     min: 0.5
-                storage:
-                  fieldParams:
-                    badge: Gi
-                    badgeToApi: true
-                    defaultValue: 20
-                    label: Storage
-                  path: spec.components.queryNode.storage.size
-                  uiType: number
-                  validation:
-                    int: true
-                    min: 1
               groupType: line
               uiType: group
           componentsOrder:
@@ -1173,16 +1142,6 @@ spec:
               validation:
                 min: 0.1
                 required: true
-            disk:
-              fieldParams:
-                badge: Gi
-                badgeToApi: true
-                label: Disk
-              path: spec.components.standalone.storage.size
-              uiType: number
-              validation:
-                max: 500
-                min: 10
             externalAccess:
               fieldParams:
                 defaultValue: ClusterIP
