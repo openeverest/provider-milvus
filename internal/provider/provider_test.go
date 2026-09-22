@@ -228,6 +228,45 @@ func TestSyncPreservesOperatorMetadata(t *testing.T) {
 	assert.Equal(t, "test-milvus", got.Labels["app.kubernetes.io/instance"])
 }
 
+func TestSyncPreservesOperatorDependencyValues(t *testing.T) {
+	// The operator injects credentials/serviceAccount into storage inCluster
+	// values; the provider must carry them forward and only overlay its own keys.
+	existing := &milvusapi.Milvus{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-milvus", Namespace: "db"},
+		Spec: milvusapi.MilvusSpec{
+			Dep: &milvusapi.MilvusDependencies{
+				Storage: milvusapi.MilvusStorage{
+					InCluster: &milvusapi.InClusterConfig{
+						Values: milvusapi.Values{
+							"rootUser":       "admin",
+							"rootPassword":   "s3cret",
+							"serviceAccount": map[string]any{"name": "test-milvus-minio"},
+							"mode":           "standalone",
+							"persistence":    map[string]any{"size": "1Gi"},
+						},
+					},
+				},
+			},
+		},
+	}
+	c := newTestContextWithObjects(t, corev1alpha1.InstanceSpec{
+		Topology: &corev1alpha1.TopologySpec{Type: "cluster"},
+	}, existing)
+
+	require.NoError(t, New().Sync(c))
+
+	got := &milvusapi.Milvus{}
+	require.NoError(t, c.Get(got, "test-milvus"))
+	values := got.Spec.Dep.Storage.InCluster.Values
+	// Operator-injected keys survive.
+	assert.Equal(t, "admin", values["rootUser"])
+	assert.Equal(t, "s3cret", values["rootPassword"])
+	assert.Equal(t, map[string]any{"name": "test-milvus-minio"}, values["serviceAccount"])
+	// Provider-owned keys win.
+	assert.Equal(t, map[string]any{"size": "10Gi"}, values["persistence"])
+	assert.Equal(t, map[string]any{"repository": "pgsty/silo", "tag": "RELEASE.2026-09-03T13-18-01Z"}, values["image"])
+}
+
 func TestBuildMilvusSpecClusterComponents(t *testing.T) {
 	c := newTestContext(t, corev1alpha1.InstanceSpec{
 		Topology: &corev1alpha1.TopologySpec{Type: "cluster"},

@@ -39,9 +39,8 @@ func TestBuildDependenciesStandaloneDefaults(t *testing.T) {
 	require.NotNil(t, spec.Dep.Storage.InCluster)
 	assert.Equal(t, "standalone", spec.Dep.Storage.InCluster.Values["mode"])
 	assert.Equal(t, map[string]any{"size": "10Gi"}, spec.Dep.Storage.InCluster.Values["persistence"])
-	// The provider does not pin the object-storage image; the operator owns it.
-	assert.NotContains(t, spec.Dep.Storage.InCluster.Values, "image")
-	assert.NotContains(t, spec.Dep.Storage.InCluster.Values, "mcImage")
+	// The provider pins the pullable pgsty/silo image (operator default is gated).
+	assert.Equal(t, map[string]any{"repository": "pgsty/silo", "tag": "RELEASE.2026-09-03T13-18-01Z"}, spec.Dep.Storage.InCluster.Values["image"])
 
 	// Standalone uses embedded rocksmq: no Pulsar dependency is configured.
 	assert.Nil(t, spec.Dep.Pulsar.InCluster)

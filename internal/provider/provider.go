@@ -265,6 +265,7 @@ func (p *Provider) Sync(c *controller.Context) error {
 		Spec:       spec,
 	}
 	preserveOperatorMetadata(c, cr)
+	preserveOperatorDependencyValues(c, cr)
 	return c.Apply(cr)
 }
 
@@ -301,6 +302,39 @@ func mergeOperatorMetadata(dst, src map[string]string) map[string]string {
 		}
 	}
 	return dst
+}
+
+// preserveOperatorDependencyValues carries operator-injected keys inside each
+// bundled dependency's inCluster.values (credentials, serviceAccount and other
+// values the operator merges in) forward across the provider's full-object
+// apply. Without this the provider's overwrite would strip them every sync and
+// fight the operator over spec.dependencies.*.inCluster.values.
+func preserveOperatorDependencyValues(c *controller.Context, cr *milvusapi.Milvus) {
+	if cr.Spec.Dep == nil {
+		return
+	}
+	existing := &milvusapi.Milvus{}
+	if err := c.Get(existing, c.Name()); err != nil || existing.Spec.Dep == nil {
+		return
+	}
+	mergeInClusterValues(existing.Spec.Dep.Etcd.InCluster, cr.Spec.Dep.Etcd.InCluster)
+	mergeInClusterValues(existing.Spec.Dep.Pulsar.InCluster, cr.Spec.Dep.Pulsar.InCluster)
+	mergeInClusterValues(existing.Spec.Dep.Storage.InCluster, cr.Spec.Dep.Storage.InCluster)
+}
+
+// mergeInClusterValues keeps the operator's existing values as the base and
+// overlays the provider's values on top, so provider-owned keys win while
+// operator-only keys survive.
+func mergeInClusterValues(existing, desired *milvusapi.InClusterConfig) {
+	if existing == nil || desired == nil || len(existing.Values) == 0 {
+		return
+	}
+	merged := milvusapi.Values{}
+	for k, v := range existing.Values {
+		merged[k] = v
+	}
+	deepMergeValues(merged, desired.Values)
+	desired.Values = merged
 }
 
 // Status computes the current status of the database instance.
