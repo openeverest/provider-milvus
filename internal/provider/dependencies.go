@@ -163,14 +163,8 @@ func buildStorage(param *dependencies.Storage) milvusapi.MilvusStorage {
 	}
 
 	values := milvusapi.Values{
-		"mode":     minioMode(replicas),
-		"replicas": int(replicas),
-		// Docker Hub's minio/minio is gated and the milvus-helm chart's default
-		// quay.io/minio tag (RELEASE.2021-02-14T04-01-33Z) has been retired, so a
-		// tag-less override falls back to an unpullable image. Pin the operator's
-		// current MinIO-compatible images (pgsty/silo, pgsty/mc) with explicit tags.
-		"image":       map[string]any{"repository": "pgsty/silo", "tag": "RELEASE.2026-09-03T13-18-01Z"},
-		"mcImage":     map[string]any{"repository": "pgsty/mc", "tag": "RELEASE.2026-09-13T00-00-00Z"},
+		"mode":        minioMode(replicas),
+		"replicas":    int(replicas),
 		"persistence": map[string]any{"size": persistenceSize},
 	}
 	if res := resourcesToValues(resources); res != nil {
