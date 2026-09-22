@@ -281,7 +281,43 @@ func (p *Provider) Sync(c *controller.Context) error {
 		ObjectMeta: c.ObjectMeta(c.Name()),
 		Spec:       spec,
 	}
+	preserveOperatorMetadata(c, cr)
 	return c.Apply(cr)
+}
+
+// preserveOperatorMetadata carries the milvus-operator's own labels and
+// annotations (the milvus.io/* namespace) forward across the provider's
+// full-object apply. The operator classifies the CR via the
+// milvus.io/operator-version label and gates a one-time dependency-value
+// migration on milvus.io/dependency-values-* annotations. Dropping them each
+// sync demotes the CR back to "legacy", retriggering that migration and putting
+// the provider and operator into a reconcile battle.
+func preserveOperatorMetadata(c *controller.Context, cr *milvusapi.Milvus) {
+	existing := &milvusapi.Milvus{}
+	if err := c.Get(existing, c.Name()); err != nil {
+		// Not created yet (create path) or transient read error: nothing to carry.
+		return
+	}
+	cr.Labels = mergeOperatorMetadata(cr.Labels, existing.Labels)
+	cr.Annotations = mergeOperatorMetadata(cr.Annotations, existing.Annotations)
+}
+
+// mergeOperatorMetadata copies milvus.io/-prefixed keys from src into dst,
+// without overwriting keys the provider already set.
+func mergeOperatorMetadata(dst, src map[string]string) map[string]string {
+	const operatorPrefix = "milvus.io/"
+	for k, v := range src {
+		if !strings.HasPrefix(k, operatorPrefix) {
+			continue
+		}
+		if dst == nil {
+			dst = map[string]string{}
+		}
+		if _, ok := dst[k]; !ok {
+			dst[k] = v
+		}
+	}
+	return dst
 }
 
 // Status computes the current status of the database instance.

@@ -179,6 +179,55 @@ func TestBuildMilvusSpecConfiguration(t *testing.T) {
 	})
 }
 
+func TestMergeOperatorMetadata(t *testing.T) {
+	dst := map[string]string{
+		"app.kubernetes.io/instance": "keep-provider-value",
+		"milvus.io/operator-version": "provider-set",
+	}
+	src := map[string]string{
+		"milvus.io/operator-version":                "v0.5.0-legacy",
+		"milvus.io/dependency-values-legacy-synced": "true",
+		"app.kubernetes.io/managed-by":              "not-operator",
+	}
+	got := mergeOperatorMetadata(dst, src)
+
+	// Operator-owned keys are carried over; provider-set keys win; non-operator
+	// keys from src are ignored.
+	assert.Equal(t, "true", got["milvus.io/dependency-values-legacy-synced"])
+	assert.Equal(t, "provider-set", got["milvus.io/operator-version"])
+	assert.Equal(t, "keep-provider-value", got["app.kubernetes.io/instance"])
+	assert.NotContains(t, got, "app.kubernetes.io/managed-by")
+}
+
+func TestSyncPreservesOperatorMetadata(t *testing.T) {
+	existing := &milvusapi.Milvus{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-milvus",
+			Namespace: "db",
+			Labels:    map[string]string{"milvus.io/operator-version": "v0.5.0"},
+			Annotations: map[string]string{
+				"milvus.io/dependency-values-legacy-synced": "true",
+				"milvus.io/dependency-values-merged":        "true",
+			},
+		},
+	}
+	c := newTestContextWithObjects(t, corev1alpha1.InstanceSpec{
+		Topology: &corev1alpha1.TopologySpec{Type: "cluster"},
+	}, existing)
+
+	require.NoError(t, New().Sync(c))
+
+	got := &milvusapi.Milvus{}
+	require.NoError(t, c.Get(got, "test-milvus"))
+	// Operator-owned metadata survives the provider's full-object apply, so the
+	// operator does not re-classify the CR as legacy and re-run its value sync.
+	assert.Equal(t, "v0.5.0", got.Labels["milvus.io/operator-version"])
+	assert.Equal(t, "true", got.Annotations["milvus.io/dependency-values-legacy-synced"])
+	assert.Equal(t, "true", got.Annotations["milvus.io/dependency-values-merged"])
+	// The provider still applies its own labels.
+	assert.Equal(t, "test-milvus", got.Labels["app.kubernetes.io/instance"])
+}
+
 func TestBuildMilvusSpecClusterComponents(t *testing.T) {
 	c := newTestContext(t, corev1alpha1.InstanceSpec{
 		Topology: &corev1alpha1.TopologySpec{Type: "cluster"},
