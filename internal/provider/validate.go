@@ -134,9 +134,6 @@ func validateComponentsForTopology(components map[string]corev1alpha1.ComponentS
 		if err := validateComponentResources(name, component); err != nil {
 			return err
 		}
-		if err := validateComponentStorage(name, component); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -180,18 +177,6 @@ func validateRequestNotAboveLimit(name string, resourceName corev1.ResourceName,
 	return nil
 }
 
-// validateComponentStorage enforces the minimum storage size when storage is
-// specified for a component.
-func validateComponentStorage(name string, component corev1alpha1.ComponentSpec) error {
-	if component.Storage == nil || component.Storage.Size.IsZero() {
-		return nil
-	}
-	if component.Storage.Size.Cmp(minStorageSize) < 0 {
-		return fmt.Errorf("component %q storage.size must be >= %s", name, minStorageSize.String())
-	}
-	return nil
-}
-
 // validateTopologyRules enforces topology-specific composition rules, such as
 // requiring at least one replica for every coordinator in cluster mode.
 func validateTopologyRules(components map[string]corev1alpha1.ComponentSpec, topologyType string) error {
@@ -214,7 +199,7 @@ func validateTopologyRules(components map[string]corev1alpha1.ComponentSpec, top
 // edit. It compares the requested size against the size already applied to the
 // existing Milvus CR; storage may only grow or stay the same.
 func validateStorageNotDecreased(c *controller.Context, topologyType string) error {
-	requested := requestedStorageSize(c.Instance().Spec.Components, topologyType)
+	requested := requestedStorageSize(c, topologyType)
 	if requested == "" {
 		return nil
 	}
@@ -243,13 +228,35 @@ func validateStorageNotDecreased(c *controller.Context, topologyType string) err
 	return nil
 }
 
-// requestedStorageSize returns the storage size the spec would apply, matching
-// the component precedence used by BuildMilvusSpec.
-func requestedStorageSize(components map[string]corev1alpha1.ComponentSpec, topologyType string) string {
-	if topologyType == "cluster" {
-		return storageSizeFromComponents(components, common.ComponentDataNode, common.ComponentQueryNode)
+// requestedStorageSize returns the object-storage PVC size the spec would apply,
+// mirroring buildStorage: the explicit storage dependency persistence size, or
+// the default. External storage has no bundled PVC.
+func requestedStorageSize(c *controller.Context, topologyType string) string {
+	storageParam := storageDependencyParam(c, topologyType)
+	if storageParam != nil && storageParam.External {
+		return ""
 	}
-	return storageSizeFromComponent(components, common.ComponentStandalone)
+	if storageParam != nil && storageParam.Persistence != nil && storageParam.Persistence.Size != "" {
+		return storageParam.Persistence.Size
+	}
+	return defaultStoragePersistence
+}
+
+// storageDependencyParam decodes the storage dependency parameter for the
+// topology, returning nil when unset.
+func storageDependencyParam(c *controller.Context, topologyType string) *dependencies.Storage {
+	if topologyType == "cluster" {
+		var params cluster.ClusterTopologyParameters
+		if c.TryDecodeTopologyParameters(&params) && params.Dependencies != nil {
+			return params.Dependencies.Storage
+		}
+		return nil
+	}
+	var params standalone.StandaloneTopologyParameters
+	if c.TryDecodeTopologyParameters(&params) && params.Dependencies != nil {
+		return params.Dependencies.Storage
+	}
+	return nil
 }
 
 // currentStorageSize extracts the persistence size applied to an existing
@@ -278,14 +285,20 @@ func validateDependencies(c *controller.Context, topologyType string) error {
 
 	if topologyType == "cluster" {
 		var params cluster.ClusterTopologyParameters
-		if c.TryDecodeTopologyParameters(&params) && params.Dependencies != nil {
+		if err := decodeTopologyParametersIfPresent(c, &params); err != nil {
+			return err
+		}
+		if params.Dependencies != nil {
 			etcd = params.Dependencies.Etcd
 			pulsar = params.Dependencies.Pulsar
 			storage = params.Dependencies.Storage
 		}
 	} else {
 		var params standalone.StandaloneTopologyParameters
-		if c.TryDecodeTopologyParameters(&params) && params.Dependencies != nil {
+		if err := decodeTopologyParametersIfPresent(c, &params); err != nil {
+			return err
+		}
+		if params.Dependencies != nil {
 			etcd = params.Dependencies.Etcd
 			storage = params.Dependencies.Storage
 		}
@@ -298,6 +311,20 @@ func validateDependencies(c *controller.Context, topologyType string) error {
 		return err
 	}
 	return validateStorageDependency(storage)
+}
+
+// decodeTopologyParametersIfPresent decodes the instance's topology parameters
+// when they are set, surfacing malformed input as an error instead of silently
+// falling back to defaults (which would deploy a spec that ignores the request).
+func decodeTopologyParametersIfPresent(c *controller.Context, target any) error {
+	topology := c.Instance().Spec.Topology
+	if topology == nil || topology.Parameters == nil || topology.Parameters.Raw == nil {
+		return nil
+	}
+	if err := c.DecodeTopologyParameters(target); err != nil {
+		return fmt.Errorf("invalid topology parameters: %w", err)
+	}
+	return nil
 }
 
 func validateEtcdDependency(etcd *dependencies.Etcd) error {
@@ -445,14 +472,14 @@ func parseResourceList(name, kind string, list *dependencies.ResourceList) (core
 		return result, nil
 	}
 	if list.CPU != "" {
-		cpu, err := resource.ParseQuantity(list.CPU)
+		cpu, err := resource.ParseQuantity(string(list.CPU))
 		if err != nil {
 			return nil, fmt.Errorf("%s.resources.%s.cpu %q is invalid: %w", name, kind, list.CPU, err)
 		}
 		result[corev1.ResourceCPU] = cpu
 	}
 	if list.Memory != "" {
-		mem, err := resource.ParseQuantity(list.Memory)
+		mem, err := resource.ParseQuantity(string(list.Memory))
 		if err != nil {
 			return nil, fmt.Errorf("%s.resources.%s.memory %q is invalid: %w", name, kind, list.Memory, err)
 		}

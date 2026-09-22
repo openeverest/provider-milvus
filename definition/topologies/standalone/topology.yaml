@@ -8,11 +8,9 @@ config:
       type: milvus
       replicas: 1
       supportedFields:
-        required: [storage]
         properties:
           replicas: {minimum: 1}
           resources: {}
-          storage: {}
           service: {}
 ui:
   sections:
@@ -41,16 +39,6 @@ ui:
           validation:
             min: 1
             max: 3
-        disk:
-          uiType: number
-          path: spec.components.standalone.storage.size
-          fieldParams:
-            label: Disk
-            badge: Gi
-            badgeToApi: true
-          validation:
-            min: 10
-            max: 500
         cpu:
           uiType: number
           path: spec.components.standalone.resources.limits.cpu

@@ -71,8 +71,6 @@ spec:
         limits:
           cpu: "1"
           memory: 4Gi
-      storage:
-        size: 20Gi
     queryNode:
       type: milvus
       replicas: 1
@@ -80,8 +78,6 @@ spec:
         limits:
           cpu: "1"
           memory: 4Gi
-      storage:
-        size: 20Gi
     streamingNode:
       type: milvus
       replicas: 1

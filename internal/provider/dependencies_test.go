@@ -15,6 +15,7 @@ import (
 	"github.com/openeverest/provider-milvus/definition/topologies/cluster"
 	"github.com/openeverest/provider-milvus/definition/topologies/standalone"
 	"github.com/openeverest/provider-milvus/internal/common"
+	"github.com/openeverest/provider-milvus/internal/milvusapi"
 )
 
 func topologyParams(t *testing.T, v any) *runtime.RawExtension {
@@ -27,9 +28,6 @@ func topologyParams(t *testing.T, v any) *runtime.RawExtension {
 func TestBuildDependenciesStandaloneDefaults(t *testing.T) {
 	c := newTestContext(t, corev1alpha1.InstanceSpec{
 		Topology: &corev1alpha1.TopologySpec{Type: "standalone"},
-		Components: map[string]corev1alpha1.ComponentSpec{
-			common.ComponentStandalone: {Storage: storage(t, "20Gi")},
-		},
 	})
 	spec, err := BuildMilvusSpec(c)
 	require.NoError(t, err)
@@ -40,9 +38,9 @@ func TestBuildDependenciesStandaloneDefaults(t *testing.T) {
 
 	require.NotNil(t, spec.Dep.Storage.InCluster)
 	assert.Equal(t, "standalone", spec.Dep.Storage.InCluster.Values["mode"])
-	assert.Equal(t, map[string]any{"size": "20Gi"}, spec.Dep.Storage.InCluster.Values["persistence"])
-	assert.Equal(t, map[string]any{"repository": "quay.io/minio/minio"}, spec.Dep.Storage.InCluster.Values["image"])
-	assert.Equal(t, map[string]any{"repository": "quay.io/minio/mc"}, spec.Dep.Storage.InCluster.Values["mcImage"])
+	assert.Equal(t, map[string]any{"size": "10Gi"}, spec.Dep.Storage.InCluster.Values["persistence"])
+	// The provider pins the pullable pgsty/silo image (operator default is gated).
+	assert.Equal(t, map[string]any{"repository": "pgsty/silo", "tag": "RELEASE.2026-09-03T13-18-01Z"}, spec.Dep.Storage.InCluster.Values["image"])
 
 	// Standalone uses embedded rocksmq: no Pulsar dependency is configured.
 	assert.Nil(t, spec.Dep.Pulsar.InCluster)
@@ -51,9 +49,6 @@ func TestBuildDependenciesStandaloneDefaults(t *testing.T) {
 func TestBuildDependenciesClusterDefaults(t *testing.T) {
 	c := newTestContext(t, corev1alpha1.InstanceSpec{
 		Topology: &corev1alpha1.TopologySpec{Type: "cluster"},
-		Components: map[string]corev1alpha1.ComponentSpec{
-			common.ComponentDataNode: {Storage: storage(t, "50Gi")},
-		},
 	})
 	spec, err := BuildMilvusSpec(c)
 	require.NoError(t, err)
@@ -71,7 +66,7 @@ func TestBuildDependenciesClusterDefaults(t *testing.T) {
 	assert.Equal(t, 2, bookkeeper["replicaCount"])
 
 	require.NotNil(t, spec.Dep.Storage.InCluster)
-	assert.Equal(t, map[string]any{"size": "50Gi"}, spec.Dep.Storage.InCluster.Values["persistence"])
+	assert.Equal(t, map[string]any{"size": "10Gi"}, spec.Dep.Storage.InCluster.Values["persistence"])
 }
 
 func TestBuildDependenciesExternal(t *testing.T) {
@@ -146,9 +141,6 @@ func TestBuildDependenciesUserOverrides(t *testing.T) {
 func TestBuildDependenciesPersistenceDefaults(t *testing.T) {
 	c := newTestContext(t, corev1alpha1.InstanceSpec{
 		Topology: &corev1alpha1.TopologySpec{Type: "cluster"},
-		Components: map[string]corev1alpha1.ComponentSpec{
-			common.ComponentDataNode: {Storage: storage(t, "50Gi")},
-		},
 	})
 	spec, err := BuildMilvusSpec(c)
 	require.NoError(t, err)
@@ -156,8 +148,8 @@ func TestBuildDependenciesPersistenceDefaults(t *testing.T) {
 	// etcd data PVC falls back to the modest provider default.
 	assert.Equal(t, map[string]any{"size": "10Gi"}, spec.Dep.Etcd.InCluster.Values["persistence"])
 
-	// MinIO derives its size from the data-bearing component's storage.
-	assert.Equal(t, map[string]any{"size": "50Gi"}, spec.Dep.Storage.InCluster.Values["persistence"])
+	// MinIO falls back to the modest provider default when unset.
+	assert.Equal(t, map[string]any{"size": "10Gi"}, spec.Dep.Storage.InCluster.Values["persistence"])
 
 	bookkeeper := spec.Dep.Pulsar.InCluster.Values["bookkeeper"].(map[string]any)
 	assert.Equal(t, map[string]any{
@@ -217,6 +209,47 @@ func TestBuildDependenciesStorageDefaultPersistence(t *testing.T) {
 	spec, err := BuildMilvusSpec(c)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]any{"size": "10Gi"}, spec.Dep.Storage.InCluster.Values["persistence"])
+}
+
+func TestBuildDependenciesNumericResourceQuantities(t *testing.T) {
+	// The UI writes a unit-less CPU field as a bare JSON number (cpu: 0.1).
+	// The dependency block must still decode and win over defaults, instead of
+	// json.Unmarshal failing and the whole block silently reverting to defaults.
+	raw := []byte(`{"dependencies":{"etcd":{"replicas":1,"resources":{"requests":{"cpu":0.1,"memory":"256Mi"}}}}}`)
+	c := newTestContext(t, corev1alpha1.InstanceSpec{
+		Topology: &corev1alpha1.TopologySpec{Type: "cluster", Parameters: &runtime.RawExtension{Raw: raw}},
+		Components: map[string]corev1alpha1.ComponentSpec{
+			common.ComponentDataNode: {Storage: storage(t, "50Gi")},
+		},
+	})
+	spec, err := BuildMilvusSpec(c)
+	require.NoError(t, err)
+
+	// 1, not the cluster default of 3.
+	assert.Equal(t, 1, spec.Dep.Etcd.InCluster.Values["replicaCount"])
+	etcdRes, ok := spec.Dep.Etcd.InCluster.Values["resources"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, map[string]any{"cpu": "0.1", "memory": "256Mi"}, etcdRes["requests"])
+}
+
+func TestBuildDependenciesDeletionPolicy(t *testing.T) {
+	c := newTestContext(t, corev1alpha1.InstanceSpec{
+		Topology: &corev1alpha1.TopologySpec{Type: "cluster"},
+	})
+	spec, err := BuildMilvusSpec(c)
+	require.NoError(t, err)
+
+	// Bundled dependencies are torn down (pods + PVCs) with the Instance, so
+	// deleting an Instance leaves no orphaned StatefulSets or volumes.
+	for name, inCluster := range map[string]*milvusapi.InClusterConfig{
+		"etcd":    spec.Dep.Etcd.InCluster,
+		"storage": spec.Dep.Storage.InCluster,
+		"pulsar":  spec.Dep.Pulsar.InCluster,
+	} {
+		require.NotNil(t, inCluster, name)
+		assert.Equal(t, "Delete", inCluster.DeletionPolicy, name)
+		assert.True(t, inCluster.PVCDeletion, name)
+	}
 }
 
 func TestValidateDependencies(t *testing.T) {

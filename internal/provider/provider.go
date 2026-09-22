@@ -75,23 +75,6 @@ func componentResourcesOrNil(components map[string]corev1alpha1.ComponentSpec, n
 	}
 }
 
-func storageSizeFromComponent(components map[string]corev1alpha1.ComponentSpec, name string) string {
-	component := components[name]
-	if component.Storage == nil || component.Storage.Size.IsZero() {
-		return ""
-	}
-	return component.Storage.Size.String()
-}
-
-func storageSizeFromComponents(components map[string]corev1alpha1.ComponentSpec, names ...string) string {
-	for _, name := range names {
-		if size := storageSizeFromComponent(components, name); size != "" {
-			return size
-		}
-	}
-	return ""
-}
-
 func makeMilvusComponentSpec(components map[string]corev1alpha1.ComponentSpec, name, image, version string) milvusapi.ComponentSpec {
 	return milvusapi.ComponentSpec{
 		Image:     image,
@@ -216,7 +199,7 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 			},
 		}
 		applyServiceExposure(&spec.Com.Standalone.ServiceComponent, instance.Spec.Components[common.ComponentStandalone].Service)
-		spec.Dep = buildDependencies(c, topologyType, storageSizeFromComponent(instance.Spec.Components, common.ComponentStandalone))
+		spec.Dep = buildDependencies(c, topologyType)
 		return spec, nil
 	}
 
@@ -248,7 +231,7 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 			spec.Com.StreamingNode = &milvusapi.MilvusStreamingNode{Component: milvusapi.Component{ComponentSpec: componentSpec, Replicas: replicas}}
 		}
 	}
-	spec.Dep = buildDependencies(c, topologyType, storageSizeFromComponents(instance.Spec.Components, common.ComponentDataNode, common.ComponentQueryNode))
+	spec.Dep = buildDependencies(c, topologyType)
 
 	return spec, nil
 }

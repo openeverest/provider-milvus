@@ -23,20 +23,16 @@ config:
       type: milvus
       replicas: 1
       supportedFields:
-        required: [storage]
         properties:
           replicas: {minimum: 1}
           resources: {}
-          storage: {}
     queryNode:
       type: milvus
       replicas: 1
       supportedFields:
-        required: [storage]
         properties:
           replicas: {minimum: 1}
           resources: {}
-          storage: {}
     streamingNode:
       type: milvus
       replicas: 1
@@ -95,17 +91,6 @@ ui:
                 badgeToApi: true
               validation:
                 min: 0.5
-            storage:
-              path: spec.components.dataNode.storage.size
-              uiType: number
-              fieldParams:
-                label: Storage
-                defaultValue: 20
-                badge: Gi
-                badgeToApi: true
-              validation:
-                min: 1
-                int: true
       componentsOrder:
         - replicas
         - resources
@@ -198,17 +183,6 @@ ui:
                 badgeToApi: true
               validation:
                 min: 0.5
-            storage:
-              path: spec.components.queryNode.storage.size
-              uiType: number
-              fieldParams:
-                label: Storage
-                defaultValue: 20
-                badge: Gi
-                badgeToApi: true
-              validation:
-                min: 1
-                int: true
       componentsOrder:
         - replicas
         - resources
