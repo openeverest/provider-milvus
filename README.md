@@ -74,7 +74,7 @@ provider itself is covered under [Installation](#installation).
 | Network exposure | ✅ | ClusterIP, NodePort or LoadBalancer via the component `service` |
 | Pod scheduling | ✅ | Per-component `schedulingPolicy` (affinity, tolerations, node selector, topology spread, scheduler); not applied to bundled dependencies |
 | Pod customization | ✅ | Per-component `parameters.pod`: annotations, env, volumes, volume mounts, container security context, init containers |
-| Monitoring | ❌ | |
+| Monitoring | ✅ | Prometheus: a PodMonitor for the Milvus components via `topology.parameters.monitoring.prometheus`; requires the Prometheus Operator |
 | TLS | ❌ | |
 
 Stateful workloads additionally report:
@@ -279,6 +279,28 @@ spec:
           cloudProvider: aws
           useIAM: true
           serviceAccountName: milvus-s3
+```
+
+### Scrape metrics with Prometheus
+
+With the [Prometheus Operator](https://prometheus-operator.dev) in the cluster,
+enable Prometheus to get a PodMonitor (`<instance>-metrics`) that scrapes every
+Milvus component on its `metrics` port. `podMonitorLabels` lets your Prometheus
+`podMonitorSelector` pick it up; `interval` defaults to the Prometheus global
+scrape interval. Turning it off removes the PodMonitor. The bundled etcd, MinIO
+and Pulsar are not scraped.
+
+```yaml
+spec:
+  topology:
+    type: standalone
+    parameters:
+      monitoring:
+        prometheus:
+          enabled: true
+          interval: 30s
+          podMonitorLabels:
+            release: kube-prometheus-stack
 ```
 
 ## Topologies

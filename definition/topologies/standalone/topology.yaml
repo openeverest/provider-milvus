@@ -177,6 +177,18 @@ ui:
       componentsOrder:
         - replicas
         - resources
+    monitoring:
+      label: "Monitoring"
+      description: "Collect Milvus metrics with Prometheus."
+      components:
+        prometheus:
+          uiType: toggle
+          path: spec.topology.parameters.monitoring.prometheus.enabled
+          fieldParams:
+            label: "Prometheus"
+            helperText: "Creates a PodMonitor that scrapes Milvus metrics. Requires the Prometheus Operator."
+      componentsOrder:
+        - prometheus
     advanced:
       label: "Advanced configuration"
       description: "Configure advanced Milvus engine settings."
@@ -210,4 +222,5 @@ ui:
     - resources
     - objectStorage
     - metadataStore
+    - monitoring
     - advanced

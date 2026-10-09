@@ -1,6 +1,9 @@
 package cluster
 
-import "github.com/openeverest/provider-milvus/definition/dependencies"
+import (
+	"github.com/openeverest/provider-milvus/definition/dependencies"
+	"github.com/openeverest/provider-milvus/definition/monitoring"
+)
 
 // ClusterTopologyParameters holds optional configuration for the
 // cluster topology.
@@ -8,6 +11,8 @@ type ClusterTopologyParameters struct {
 	// Dependencies configures the operator-managed dependencies (etcd, Pulsar,
 	// MinIO) for the cluster deployment.
 	Dependencies *ClusterDependencies `json:"dependencies,omitempty"`
+	// Monitoring configures metrics collection.
+	Monitoring *monitoring.Monitoring `json:"monitoring,omitempty"`
 }
 
 // ClusterDependencies groups the dependency configuration available in cluster

@@ -78,9 +78,9 @@ This document outlines the planned features and improvements for the Milvus prov
 
 ### Features
 - [ ] **Prometheus Metrics**
-  - Enable/disable PodMonitor for component metrics
+  - [x] Enable/disable PodMonitor for component metrics
   - Map Milvus metrics to OpenEverest monitoring schema
-  - Support custom scrape intervals and labels
+  - [x] Support custom scrape intervals and labels
 
 - [ ] **Health Checks**
   - Liveness and readiness probe configuration

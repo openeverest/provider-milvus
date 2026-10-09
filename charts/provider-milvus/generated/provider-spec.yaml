@@ -2689,6 +2689,20 @@ spec:
                       type: boolean
                   type: object
               type: object
+            monitoring:
+              properties:
+                prometheus:
+                  properties:
+                    enabled:
+                      type: boolean
+                    interval:
+                      type: string
+                    podMonitorLabels:
+                      additionalProperties:
+                        type: string
+                      type: object
+                  type: object
+              type: object
           type: object
     standalone:
       components:
@@ -2791,6 +2805,20 @@ spec:
                       type: boolean
                     useSSL:
                       type: boolean
+                  type: object
+              type: object
+            monitoring:
+              properties:
+                prometheus:
+                  properties:
+                    enabled:
+                      type: boolean
+                    interval:
+                      type: string
+                    podMonitorLabels:
+                      additionalProperties:
+                        type: string
+                      type: object
                   type: object
               type: object
           type: object
@@ -3212,6 +3240,18 @@ spec:
             - resources
           description: Configure the bundled metadata store.
           label: Metadata store
+        monitoring:
+          components:
+            prometheus:
+              fieldParams:
+                helperText: Creates a PodMonitor that scrapes every Milvus component. Requires the Prometheus Operator.
+                label: Prometheus
+              path: spec.topology.parameters.monitoring.prometheus.enabled
+              uiType: toggle
+          componentsOrder:
+            - prometheus
+          description: Collect Milvus metrics with Prometheus.
+          label: Monitoring
         objectStorage:
           components:
             replicas:
@@ -3404,6 +3444,7 @@ spec:
         - objectStorage
         - metadataStore
         - messageStream
+        - monitoring
         - advanced
     standalone:
       sections:
@@ -3499,6 +3540,18 @@ spec:
             - resources
           description: Configure the bundled metadata store.
           label: Metadata store
+        monitoring:
+          components:
+            prometheus:
+              fieldParams:
+                helperText: Creates a PodMonitor that scrapes Milvus metrics. Requires the Prometheus Operator.
+                label: Prometheus
+              path: spec.topology.parameters.monitoring.prometheus.enabled
+              uiType: toggle
+          componentsOrder:
+            - prometheus
+          description: Collect Milvus metrics with Prometheus.
+          label: Monitoring
         objectStorage:
           components:
             replicas:
@@ -3602,6 +3655,7 @@ spec:
         - resources
         - objectStorage
         - metadataStore
+        - monitoring
         - advanced
   versions:
     - components:

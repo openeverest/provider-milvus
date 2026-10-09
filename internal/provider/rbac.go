@@ -25,3 +25,5 @@ package provider
 // Nodes are read to resolve a reachable address for NodePort-exposed instances.
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments;statefulsets,verbs=get;list;watch;create;update;patch;delete
+// PodMonitor of the Prometheus integration; the operator's own one is removed.
+// +kubebuilder:rbac:groups=monitoring.coreos.com,resources=podmonitors,verbs=get;list;watch;create;update;patch;delete

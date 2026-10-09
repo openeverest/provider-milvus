@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -36,6 +37,7 @@ func newTestContext(t *testing.T, spec corev1alpha1.InstanceSpec) *controller.Co
 	require.NoError(t, corev1alpha1.AddToScheme(scheme))
 	require.NoError(t, corev1.AddToScheme(scheme))
 	require.NoError(t, milvusapi.AddToScheme(scheme))
+	require.NoError(t, monitoringv1.AddToScheme(scheme))
 
 	instance := &corev1alpha1.Instance{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-milvus", Namespace: "db"},
