@@ -1,6 +1,9 @@
 package standalone
 
-import "github.com/openeverest/provider-milvus/definition/dependencies"
+import (
+	"github.com/openeverest/provider-milvus/definition/dependencies"
+	"github.com/openeverest/provider-milvus/definition/monitoring"
+)
 
 // StandaloneTopologyParameters holds optional configuration for the
 // standalone topology.
@@ -9,6 +12,8 @@ type StandaloneTopologyParameters struct {
 	// for the standalone deployment. Standalone Milvus uses an embedded
 	// message stream (rocksmq), so Pulsar is not configurable here.
 	Dependencies *StandaloneDependencies `json:"dependencies,omitempty"`
+	// Monitoring configures metrics collection.
+	Monitoring *monitoring.Monitoring `json:"monitoring,omitempty"`
 }
 
 // StandaloneDependencies groups the dependency configuration available in

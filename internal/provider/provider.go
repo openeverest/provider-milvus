@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
@@ -33,6 +34,7 @@ func New() *Provider {
 			ProviderName: common.ProviderName,
 			SchemeFuncs: []func(*runtime.Scheme) error{
 				milvusapi.AddToScheme,
+				monitoringv1.AddToScheme,
 			},
 			WatchConfigs: []controller.WatchConfig{
 				controller.WatchOwned(&milvusapi.Milvus{}),
@@ -251,6 +253,8 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 				Image:   images.fallback.image,
 				Version: images.fallback.version,
 			},
+			// The provider owns the PodMonitor (see syncPodMonitor).
+			DisableMetric: true,
 		},
 	}
 
@@ -371,7 +375,10 @@ func (p *Provider) Sync(c *controller.Context) error {
 		ObjectMeta: c.ObjectMeta(c.Name()),
 		Spec:       spec,
 	}
-	return c.Apply(cr)
+	if err := c.Apply(cr); err != nil {
+		return err
+	}
+	return syncPodMonitor(c)
 }
 
 // Status computes the current status of the database instance.

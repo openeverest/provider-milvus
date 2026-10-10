@@ -133,6 +133,9 @@ type MilvusComponents struct {
 	QueryNode        *MilvusQueryNode     `json:"queryNode,omitempty"`
 	StreamingNode    *MilvusStreamingNode `json:"streamingNode,omitempty"`
 	EnableManualMode bool                 `json:"enableManualMode,omitempty"`
+
+	// DisableMetric stops the operator from creating its own PodMonitor.
+	DisableMetric bool `json:"disableMetric,omitempty"`
 }
 
 // MilvusSpec is the desired state of a Milvus deployment.
