@@ -46,13 +46,22 @@ upgrade_to() {
 }
 
 delete_and_check() {
-  local instance=$1 leftovers
+  local instance=$1 leftovers volumes
+  # Retain storage classes would keep the cloud volumes after the PVCs are gone.
+  volumes=$(kubectl -n "$NAMESPACE" get pvc -o json |
+    jq -r --arg instance "$instance" '.items[] | select(.metadata.name | contains($instance)) | .spec.volumeName // empty')
+  for volume in $volumes; do
+    kubectl patch pv "$volume" -p '{"spec":{"persistentVolumeReclaimPolicy":"Delete"}}' >/dev/null
+  done
   kubectl -n "$NAMESPACE" delete instance "$instance" --wait=true --timeout=300s
   # The operator uninstalls the dependency releases after the Instance is gone.
   for _ in $(seq 60); do
     if leftovers=$(kubectl -n "$NAMESPACE" get milvus,pods,pvc,statefulsets,deployments -o name); then
       leftovers=$(grep -- "/$instance" <<<"$leftovers" || true)
-      [[ -z "$leftovers" ]] && return 0
+      for volume in $volumes; do
+        kubectl get pv "$volume" >/dev/null 2>&1 && leftovers+=" pv/$volume"
+      done
+      [[ -z "${leftovers// /}" ]] && return 0
     fi
     sleep 10
   done
