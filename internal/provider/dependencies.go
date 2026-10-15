@@ -59,14 +59,12 @@ var (
 // buildDependencies renders the Milvus dependency spec (etcd, Pulsar, MinIO)
 // from the topology parameters, applying per-topology defaults and honouring
 // external-dependency overrides.
-func buildDependencies(c *controller.Context, topologyType string) *milvusapi.MilvusDependencies {
+func buildDependencies(c *controller.Context, topologyType string, storageParam *dependencies.Storage) *milvusapi.MilvusDependencies {
 	if topologyType != "cluster" {
 		var params standalone.StandaloneTopologyParameters
 		var etcdParam *dependencies.Etcd
-		var storageParam *dependencies.Storage
 		if c.TryDecodeTopologyParameters(&params) && params.Dependencies != nil {
 			etcdParam = params.Dependencies.Etcd
-			storageParam = params.Dependencies.Storage
 		}
 		return &milvusapi.MilvusDependencies{
 			Etcd:    buildEtcd(etcdParam, topologyType),
@@ -77,7 +75,7 @@ func buildDependencies(c *controller.Context, topologyType string) *milvusapi.Mi
 	deps := clusterDependencyParams(c)
 	dep := &milvusapi.MilvusDependencies{
 		Etcd:          buildEtcd(deps.Etcd, topologyType),
-		Storage:       buildStorage(deps.Storage),
+		Storage:       buildStorage(storageParam),
 		MsgStreamType: messageStreamType(c, deps.MessageStreamType),
 	}
 	if dep.MsgStreamType == dependencies.MessageStreamPulsar {

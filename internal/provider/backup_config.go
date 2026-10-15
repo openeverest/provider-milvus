@@ -126,7 +126,7 @@ func backupStorageObjectStore(bs *backupv1alpha1.BackupStorage, rootPath string)
 	}
 	useSSL := endpoint.Scheme == "https"
 	if useSSL && s3.VerifyTLS != nil && !*s3.VerifyTLS {
-		return backupObjectStore{}, fmt.Errorf("BackupStorage %q: verifyTLS false is not supported by milvus-backup", bs.Name)
+		return backupObjectStore{}, fmt.Errorf("BackupStorage %q: verifyTLS false is not supported: Milvus and milvus-backup always verify TLS", bs.Name)
 	}
 	host, portText, err := net.SplitHostPort(endpoint.Host)
 	if err != nil {

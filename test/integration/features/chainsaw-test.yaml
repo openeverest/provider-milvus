@@ -5,7 +5,8 @@
 # target), so these steps check what the provider writes onto the Milvus CR
 # for features that are pure translation: engine configuration, pod
 # customization, deployment groups, probe tuning, monitoring, version
-# upgrade and downgrade rejection, external dependencies and Pulsar.
+# upgrade and downgrade rejection, external dependencies, Pulsar and a
+# storage location.
 apiVersion: chainsaw.kyverno.io/v1alpha1
 kind: Test
 metadata:
@@ -123,13 +124,20 @@ spec:
               metadata:
                 name: deps-minio
 
+    - name: storage-location
+      try:
+        - apply:
+            file: 50-create-located.yaml
+        - assert:
+            file: 50-assert.yaml
+
     # The operator is scaled to 0, so clear the Milvus finalizers manually.
     - name: delete-instances
       try:
         - script:
             content: |
-              kubectl -n $NAMESPACE delete instance/features instance/deps --wait=false
-              for name in features deps; do
+              kubectl -n $NAMESPACE delete instance/features instance/deps instance/located --wait=false
+              for name in features deps located; do
                 kubectl -n $NAMESPACE patch milvuses.milvus.io/$name \
                   -p '{"metadata":{"finalizers":null}}' --type merge || true
               done
@@ -143,6 +151,12 @@ spec:
             apiVersion: core.openeverest.io/v1alpha1
             kind: Instance
             name: deps
+            for:
+              deletion: {}
+        - wait:
+            apiVersion: core.openeverest.io/v1alpha1
+            kind: Instance
+            name: located
             for:
               deletion: {}
         - wait:

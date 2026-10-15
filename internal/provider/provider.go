@@ -290,7 +290,10 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 		engineConfig = withActiveStandbyDefaults(engineConfig)
 	}
 	spec.Conf = engineConfig
-	storageParam := storageDependencyParam(c, topologyType)
+	storageParam, err := resolveStorageLocation(c, storageDependencyParam(c, topologyType))
+	if err != nil {
+		return milvusapi.MilvusSpec{}, err
+	}
 	for _, dependencyConfig := range []milvusapi.Values{
 		externalStorageConfig(storageParam),
 		externalEtcdConfig(etcdDependencyParam(c, topologyType)),
@@ -313,7 +316,7 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 			},
 		}
 		applyServiceExposure(&spec.Com.Standalone.ServiceComponent, instance.Spec.Components[common.ComponentStandalone].Service)
-		spec.Dep = buildDependencies(c, topologyType)
+		spec.Dep = buildDependencies(c, topologyType, storageParam)
 		applyImageUpdateMode(&spec.Com)
 		return spec, nil
 	}
@@ -334,7 +337,7 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 	spec.Com.QueryNode.Groups = applyDeploymentGroups(c, common.ComponentQueryNode, &spec.Com.QueryNode.Component)
 	spec.Com.StreamingNode = &milvusapi.MilvusStreamingNode{Component: makeMilvusComponent(c, common.ComponentStreaming, images.resolve(common.ComponentStreaming))}
 	spec.Com.StreamingNode.Groups = applyDeploymentGroups(c, common.ComponentStreaming, &spec.Com.StreamingNode.Component)
-	spec.Dep = buildDependencies(c, topologyType)
+	spec.Dep = buildDependencies(c, topologyType, storageParam)
 	applyImageUpdateMode(&spec.Com)
 
 	return spec, nil
@@ -367,6 +370,13 @@ func (p *Provider) Sync(c *controller.Context) error {
 	}
 	applyAuthConfig(&spec, credentialsSecretName(c.Name()))
 	if err := applyStorageCredentials(c, &spec); err != nil {
+		return err
+	}
+	topologyType := "standalone"
+	if spec.Mode == milvusapi.MilvusModeCluster {
+		topologyType = "cluster"
+	}
+	if err := syncStorageLocationSecret(c, storageDependencyParam(c, topologyType)); err != nil {
 		return err
 	}
 	if err := clearDroppedAutoscaling(c, spec); err != nil {

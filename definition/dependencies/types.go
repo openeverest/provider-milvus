@@ -88,6 +88,12 @@ type Etcd struct {
 
 // Storage configures the MinIO object storage dependency.
 type Storage struct {
+	// BackupStorageName keeps Milvus data in an OpenEverest storage location
+	// (an S3 BackupStorage in the Instance namespace) instead of the bundled
+	// MinIO: its endpoint, bucket, region and credentials are used, under
+	// RootPath (default milvus/<namespace>/<instance>). Cannot be combined with
+	// the other external fields or changed after creation.
+	BackupStorageName string `json:"backupStorageName,omitempty"`
 	// External disables the bundled MinIO and points Milvus at the provided
 	// Endpoint instead. Endpoint must be set when External is true.
 	External bool `json:"external,omitempty"`

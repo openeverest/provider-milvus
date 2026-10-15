@@ -69,8 +69,18 @@ ui:
                 value: LoadBalancer
     objectStorage:
       label: Object storage
-      description: Configure the bundled object storage that holds Milvus data.
+      description: Keep Milvus data in the bundled MinIO, or in an S3 storage location from Settings.
       components:
+        storageLocation:
+          path: spec.topology.parameters.dependencies.storage.backupStorageName
+          uiType: text
+          fieldParams:
+            label: Storage location
+            helperText: Name of an S3 storage location in this namespace. Leave empty to use the bundled MinIO sized below.
+            modes:
+              edit:
+                disabled: true
+                helperText: The object storage cannot be changed after creation
         replicas:
           path: spec.topology.parameters.dependencies.storage.replicas
           uiType: number
@@ -116,6 +126,7 @@ ui:
                 min: 1
                 int: true
       componentsOrder:
+        - storageLocation
         - replicas
         - resources
     metadataStore:

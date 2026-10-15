@@ -81,7 +81,7 @@ func validateInstance(c *controller.Context) error {
 		return err
 	}
 
-	if err := validateRootPathsUnchanged(c); err != nil {
+	if err := validateDataLocationUnchanged(c); err != nil {
 		return err
 	}
 
@@ -300,7 +300,7 @@ func validateStorageNotDecreased(c *controller.Context, topologyType string) err
 // the default. External storage has no bundled PVC.
 func requestedStorageSize(c *controller.Context, topologyType string) string {
 	storageParam := storageDependencyParam(c, topologyType)
-	if storageParam != nil && storageParam.External {
+	if storageParam != nil && (storageParam.External || storageParam.BackupStorageName != "") {
 		return ""
 	}
 	if storageParam != nil && storageParam.Persistence != nil && storageParam.Persistence.Size != "" {
@@ -339,9 +339,10 @@ func etcdDependencyParam(c *controller.Context, topologyType string) *dependenci
 	return nil
 }
 
-// validateRootPathsUnchanged rejects moving an existing instance's metadata or
-// object prefix: Milvus would start empty and orphan what it wrote before.
-func validateRootPathsUnchanged(c *controller.Context) error {
+// validateDataLocationUnchanged rejects moving an existing instance's metadata
+// or objects (prefix, object store or bucket): Milvus would start empty and
+// orphan what it wrote before.
+func validateDataLocationUnchanged(c *controller.Context) error {
 	existing := &milvusapi.Milvus{}
 	if err := c.Get(existing, c.Name()); err != nil || existing.Spec.Mode == "" {
 		return nil
@@ -349,6 +350,9 @@ func validateRootPathsUnchanged(c *controller.Context) error {
 	desired, err := BuildMilvusSpec(c)
 	if err != nil {
 		return err
+	}
+	if current, requested := objectStore(existing.Spec), objectStore(desired); current != requested {
+		return fmt.Errorf("object storage cannot be changed from %s to %s", current, requested)
 	}
 	for _, prefix := range []struct{ section, defaultValue string }{
 		{section: "etcd", defaultValue: c.Name()},
@@ -365,6 +369,17 @@ func validateRootPathsUnchanged(c *controller.Context) error {
 
 // defaultMinioRootPath is the operator's object prefix when none is set.
 const defaultMinioRootPath = "files"
+
+// objectStore names where an instance keeps its objects: the bundled MinIO or
+// an external endpoint and bucket.
+func objectStore(spec milvusapi.MilvusSpec) string {
+	if spec.Dep == nil || !spec.Dep.Storage.External {
+		return "the bundled MinIO"
+	}
+	minio, _ := spec.Conf["minio"].(map[string]any)
+	bucket, _ := minio["bucketName"].(string)
+	return fmt.Sprintf("%s/%s", spec.Dep.Storage.Endpoint, bucket)
+}
 
 func rootPathOrDefault(config milvusapi.Values, section, defaultValue string) string {
 	settings, _ := config[section].(map[string]any)
@@ -432,7 +447,17 @@ func validateDependencies(c *controller.Context, topologyType string) error {
 	if err := validatePulsarDependency(pulsar); err != nil {
 		return err
 	}
-	return validateStorageDependency(storage)
+	if err := validateStorageDependency(storage); err != nil {
+		return err
+	}
+	if storage == nil || storage.BackupStorageName == "" {
+		return nil
+	}
+	if _, err := resolveStorageLocation(c, storage); err != nil {
+		return err
+	}
+	_, _, err := storageLocationKeys(c, storage.BackupStorageName)
+	return err
 }
 
 // validateMessageStream accepts the supported write-ahead logs and rejects
@@ -543,6 +568,14 @@ func validatePulsarComponent(name string, component *dependencies.PulsarComponen
 
 func validateStorageDependency(storage *dependencies.Storage) error {
 	if storage == nil {
+		return nil
+	}
+	if storage.BackupStorageName != "" {
+		if storage.External || storage.Endpoint != "" || storage.Type != "" || storage.CredentialsSecret != "" ||
+			storage.UseIAM || storage.Region != "" || storage.Bucket != "" || storage.UseSSL {
+			return fmt.Errorf("storage.backupStorageName takes the endpoint, bucket, region and credentials from the storage location; " +
+				"remove storage.external, endpoint, type, credentialsSecret, useIAM, region, bucket and useSSL")
+		}
 		return nil
 	}
 	if storage.External {
