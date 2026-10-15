@@ -1,0 +1,29 @@
+# Expected outcome of the storage-location step: the location's endpoint,
+# bucket and region become external storage under a per-instance prefix, and
+# its keys are copied under the names the operator reads.
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: located
+spec:
+  config:
+    minio:
+      bucketName: chainsaw-bucket
+      region: eu-west-1
+      useSSL: true
+      (starts_with(rootPath, 'milvus/')): true
+  dependencies:
+    storage:
+      external: true
+      endpoint: s3.example.internal:443
+      type: MinIO
+      secretRef: located-object-storage
+      (inCluster == null): true
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: located-object-storage
+data:
+  accesskey: Y2hhaW5zYXctYWNjZXNz
+  secretkey: Y2hhaW5zYXctc2VjcmV0

@@ -218,34 +218,59 @@ func TestBuildDependenciesExternalS3WithIAM(t *testing.T) {
 	assert.Equal(t, map[string]any{"chanNamePrefix": map[string]any{"cluster": "vectors-prod"}}, spec.Conf["msgChannel"])
 }
 
-func TestValidateRootPathsUnchanged(t *testing.T) {
-	external := func(storageRootPath string) *runtime.RawExtension {
+func TestValidateDataLocationUnchanged(t *testing.T) {
+	external := func(endpoint, storageRootPath string) *runtime.RawExtension {
 		return topologyParams(t, standalone.StandaloneTopologyParameters{
 			Dependencies: &standalone.StandaloneDependencies{Storage: &dependencies.Storage{
-				External: true, Endpoint: "minio:9000", CredentialsSecret: "creds", RootPath: storageRootPath,
+				External: true, Endpoint: endpoint, CredentialsSecret: "creds", RootPath: storageRootPath,
 			}},
 		})
 	}
-	existing := &milvusapi.Milvus{
+	onExternal := &milvusapi.Milvus{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-milvus", Namespace: "db"},
+		Spec: milvusapi.MilvusSpec{
+			Mode: milvusapi.MilvusModeStandalone,
+			Dep:  &milvusapi.MilvusDependencies{Storage: milvusapi.MilvusStorage{External: true, Endpoint: "minio:9000"}},
+		},
+	}
+	onBundled := &milvusapi.Milvus{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-milvus", Namespace: "db"},
 		Spec:       milvusapi.MilvusSpec{Mode: milvusapi.MilvusModeStandalone},
 	}
 
-	t.Run("default prefix kept", func(t *testing.T) {
-		c := newTestContextWithObjects(t, corev1alpha1.InstanceSpec{
-			Topology: &corev1alpha1.TopologySpec{Type: "standalone", Parameters: external("")},
-		}, existing.DeepCopyObject().(*milvusapi.Milvus))
-		require.NoError(t, validateInstance(c))
-	})
-
-	t.Run("prefix moved", func(t *testing.T) {
-		c := newTestContextWithObjects(t, corev1alpha1.InstanceSpec{
-			Topology: &corev1alpha1.TopologySpec{Type: "standalone", Parameters: external("tenant-a")},
-		}, existing.DeepCopyObject().(*milvusapi.Milvus))
-		err := validateInstance(c)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), `minio rootPath cannot be changed from "files" to "tenant-a"`)
-	})
+	tests := []struct {
+		name     string
+		existing *milvusapi.Milvus
+		params   *runtime.RawExtension
+		wantErr  string
+	}{
+		{name: "default prefix kept", existing: onExternal, params: external("minio:9000", "")},
+		{
+			name: "prefix moved", existing: onExternal, params: external("minio:9000", "tenant-a"),
+			wantErr: `minio rootPath cannot be changed from "files" to "tenant-a"`,
+		},
+		{
+			name: "endpoint moved", existing: onExternal, params: external("other:9000", ""),
+			wantErr: "object storage cannot be changed from minio:9000/ to other:9000/",
+		},
+		{
+			name: "bundled to external", existing: onBundled, params: external("minio:9000", ""),
+			wantErr: "object storage cannot be changed from the bundled MinIO to minio:9000/",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := newTestContextWithObjects(t, corev1alpha1.InstanceSpec{
+				Topology: &corev1alpha1.TopologySpec{Type: "standalone", Parameters: tt.params},
+			}, tt.existing.DeepCopyObject().(*milvusapi.Milvus))
+			err := validateInstance(c)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			assert.ErrorContains(t, err, tt.wantErr)
+		})
+	}
 }
 
 func TestBuildDependenciesUserOverrides(t *testing.T) {

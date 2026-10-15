@@ -1,0 +1,40 @@
+# Standalone Instance keeping its data in an OpenEverest storage location.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: located-s3-keys
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: chainsaw-access
+  AWS_SECRET_ACCESS_KEY: chainsaw-secret
+---
+apiVersion: backup.openeverest.io/v1alpha1
+kind: BackupStorage
+metadata:
+  name: located-s3
+spec:
+  type: s3
+  s3:
+    bucket: chainsaw-bucket
+    region: eu-west-1
+    endpointURL: https://s3.example.internal
+    credentialsSecretRef:
+      name: located-s3-keys
+---
+apiVersion: core.openeverest.io/v1alpha1
+kind: Instance
+metadata:
+  name: located
+spec:
+  providerRef:
+    name: milvus
+  topology:
+    type: standalone
+    parameters:
+      dependencies:
+        storage:
+          backupStorageName: located-s3
+  components:
+    standalone:
+      type: milvus
+      replicas: 1

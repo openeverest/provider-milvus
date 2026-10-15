@@ -3304,6 +3304,8 @@ spec:
                   type: object
                 storage:
                   properties:
+                    backupStorageName:
+                      type: string
                     bucket:
                       type: string
                     cloudProvider:
@@ -3423,6 +3425,8 @@ spec:
                   type: object
                 storage:
                   properties:
+                    backupStorageName:
+                      type: string
                     bucket:
                       type: string
                     cloudProvider:
@@ -3994,10 +3998,21 @@ spec:
                     min: 1
               groupType: line
               uiType: group
+            storageLocation:
+              fieldParams:
+                helperText: Name of an S3 storage location in this namespace. Leave empty to use the bundled MinIO sized below.
+                label: Storage location
+                modes:
+                  edit:
+                    disabled: true
+                    helperText: The object storage cannot be changed after creation
+              path: spec.topology.parameters.dependencies.storage.backupStorageName
+              uiType: text
           componentsOrder:
+            - storageLocation
             - replicas
             - resources
-          description: Configure the bundled object storage that holds Milvus data.
+          description: Keep Milvus data in the bundled MinIO, or in an S3 storage location from Settings.
           label: Object storage
         proxy:
           components:
@@ -4356,10 +4371,21 @@ spec:
                     min: 1
               groupType: line
               uiType: group
+            storageLocation:
+              fieldParams:
+                helperText: Name of an S3 storage location in this namespace. Leave empty to use the bundled MinIO sized below.
+                label: Storage location
+                modes:
+                  edit:
+                    disabled: true
+                    helperText: The object storage cannot be changed after creation
+              path: spec.topology.parameters.dependencies.storage.backupStorageName
+              uiType: text
           componentsOrder:
+            - storageLocation
             - replicas
             - resources
-          description: Configure the bundled object storage that holds Milvus data.
+          description: Keep Milvus data in the bundled MinIO, or in an S3 storage location from Settings.
           label: Object storage
         resources:
           components:
