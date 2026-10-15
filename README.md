@@ -548,10 +548,18 @@ code generation, and the backup/restore interfaces are documented once for all p
 - **Live end-to-end tests** — `make test-e2e-live` runs real standalone and cluster instances
   on the current cluster with the real operator: smoke test (pymilvus), backup and restore,
   upgrade with data, rejected downgrade, scaling, autoscaling, and clean deletion.
+- **Conformance tests** — part of `make test-unit`. The OpenEverest conformance harness checks
+  that every UI field and every `supportedFields` declaration changes what the provider
+  applies; the version matrix checks every shipped version bundle validates, deploys a single
+  image per instance, and upgrades (never downgrades) to every other bundle.
+- **Live version matrix** — `make test-e2e-versions` creates a standalone instance at every
+  version bundle the installed Provider offers, writes data, upgrades it to the newest bundle
+  of the same build and verifies the data.
 - **CI** — `.github/workflows/ci.yaml` runs lint, build, unit tests, generated-file
   verification, Helm lint, and each integration suite on every pull request.
-  `.github/workflows/e2e.yaml` runs the live end-to-end tests on k3d (about 30 minutes)
-  nightly, on demand, and on pull requests labelled `e2e`.
+  `.github/workflows/e2e.yaml` runs the live end-to-end tests and the live version matrix
+  on k3d (about 30 minutes each, in parallel) nightly, on demand, and on pull requests
+  labelled `e2e`.
 
 ## Troubleshooting
 
