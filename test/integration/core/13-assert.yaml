@@ -1,0 +1,9 @@
+# Expected outcome of the reduced-redundancy step: still Ready, with the
+# dependency that is short of pods named in the message.
+apiVersion: core.openeverest.io/v1alpha1
+kind: Instance
+metadata:
+  name: test-instance
+status:
+  phase: Ready
+  message: "serving with reduced redundancy: etcd 0/1 ready"

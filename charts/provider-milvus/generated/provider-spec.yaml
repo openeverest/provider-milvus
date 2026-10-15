@@ -248,6 +248,54 @@ spec:
                     type: object
                   type: array
               type: object
+            probes:
+              properties:
+                liveness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                readiness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                startup:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+              type: object
           type: object
       type: milvus
     dataNode:
@@ -479,6 +527,54 @@ spec:
                     additionalProperties: {}
                     type: object
                   type: array
+              type: object
+            probes:
+              properties:
+                liveness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                readiness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                startup:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
               type: object
           type: object
       type: milvus
@@ -712,6 +808,54 @@ spec:
                     type: object
                   type: array
               type: object
+            probes:
+              properties:
+                liveness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                readiness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                startup:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+              type: object
           type: object
       type: milvus
     indexNode:
@@ -943,6 +1087,54 @@ spec:
                     additionalProperties: {}
                     type: object
                   type: array
+              type: object
+            probes:
+              properties:
+                liveness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                readiness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                startup:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
               type: object
           type: object
       type: milvus
@@ -1176,6 +1368,54 @@ spec:
                     type: object
                   type: array
               type: object
+            probes:
+              properties:
+                liveness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                readiness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                startup:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+              type: object
           type: object
       type: milvus
     proxy:
@@ -1407,6 +1647,54 @@ spec:
                     additionalProperties: {}
                     type: object
                   type: array
+              type: object
+            probes:
+              properties:
+                liveness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                readiness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                startup:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
               type: object
           type: object
       type: milvus
@@ -1640,6 +1928,54 @@ spec:
                     type: object
                   type: array
               type: object
+            probes:
+              properties:
+                liveness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                readiness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                startup:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+              type: object
           type: object
       type: milvus
     queryNode:
@@ -1871,6 +2207,54 @@ spec:
                     additionalProperties: {}
                     type: object
                   type: array
+              type: object
+            probes:
+              properties:
+                liveness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                readiness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                startup:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
               type: object
           type: object
       type: milvus
@@ -2104,6 +2488,54 @@ spec:
                     type: object
                   type: array
               type: object
+            probes:
+              properties:
+                liveness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                readiness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                startup:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+              type: object
           type: object
       type: milvus
     standalone:
@@ -2336,6 +2768,54 @@ spec:
                     type: object
                   type: array
               type: object
+            probes:
+              properties:
+                liveness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                readiness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                startup:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+              type: object
           type: object
       type: milvus
     streamingNode:
@@ -2567,6 +3047,54 @@ spec:
                     additionalProperties: {}
                     type: object
                   type: array
+              type: object
+            probes:
+              properties:
+                liveness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                readiness:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
+                startup:
+                  properties:
+                    failureThreshold:
+                      format: int32
+                      type: integer
+                    initialDelaySeconds:
+                      format: int32
+                      type: integer
+                    periodSeconds:
+                      format: int32
+                      type: integer
+                    timeoutSeconds:
+                      format: int32
+                      type: integer
+                  type: object
               type: object
           type: object
       type: milvus

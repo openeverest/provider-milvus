@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -41,6 +42,7 @@ func New() *Provider {
 				milvusapi.AddToScheme,
 				monitoringv1.AddToScheme,
 				batchv1.AddToScheme,
+				appsv1.AddToScheme,
 			},
 			WatchConfigs: []controller.WatchConfig{
 				controller.WatchOwned(&milvusapi.Milvus{}),
@@ -51,6 +53,10 @@ func New() *Provider {
 				// A finished scheduled run is what retention acts on.
 				controller.WatchExternal(&backupv1alpha1.Backup{},
 					handler.EnqueueRequestsFromMapFunc(enqueueScheduledBackupInstance)),
+				controller.WatchExternal(&appsv1.StatefulSet{},
+					handler.EnqueueRequestsFromMapFunc(enqueueDependencyInstance)),
+				controller.WatchExternal(&appsv1.Deployment{},
+					handler.EnqueueRequestsFromMapFunc(enqueueDependencyInstance)),
 			},
 		},
 		rootPassword:   newMilvusRESTClient(),
@@ -109,6 +115,7 @@ func makeMilvusComponent(c *controller.Context, name string, image milvusImage) 
 	params := componentParameters(c, name)
 	applyPodCustomization(&component, params.Pod)
 	applyAutoscaling(&component, params.Autoscaling)
+	applyProbes(&component.ComponentSpec, params.Probes)
 	return component
 }
 
@@ -409,6 +416,9 @@ func (p *Provider) Status(c *controller.Context) (controller.Status, error) {
 
 	switch cr.Status.Status {
 	case milvusapi.StatusHealthy:
+		if failure, failing := failingDependency(cr); failing {
+			return controller.Provisioning("a Milvus dependency is not ready: " + failure), nil
+		}
 		host, port, ready, message := resolveEndpoint(c, cr)
 		if !ready {
 			return controller.Provisioning(message), nil
@@ -439,7 +449,15 @@ func (p *Provider) Status(c *controller.Context) (controller.Status, error) {
 			status.ConnectionDetails = details
 			return status, nil
 		}
-		return controller.ReadyWithConnectionDetails(details), nil
+		status := controller.ReadyWithConnectionDetails(details)
+		short, err := shortWorkloads(c)
+		if err != nil {
+			return controller.Status{}, err
+		}
+		if len(short) > 0 {
+			status.Message = "serving with reduced redundancy: " + strings.Join(short, ", ")
+		}
+		return status, nil
 	case milvusapi.StatusPending, milvusapi.StatusDeleting:
 		return controller.Provisioning(notReadyMessage(cr, "Milvus is being initialized or updated")), nil
 	case milvusapi.StatusStopped:

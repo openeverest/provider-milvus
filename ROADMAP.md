@@ -13,6 +13,7 @@ truth; this page summarizes it. What works today is listed under
 | Status, connection details and credentials (generation, rotation) | [#6](https://github.com/openeverest/provider-milvus/issues/6), [#7](https://github.com/openeverest/provider-milvus/issues/7), [#8](https://github.com/openeverest/provider-milvus/issues/8) |
 | Backups (on demand and scheduled) and restore | [#9](https://github.com/openeverest/provider-milvus/issues/9), [#10](https://github.com/openeverest/provider-milvus/issues/10) |
 | Prometheus PodMonitor | [#11](https://github.com/openeverest/provider-milvus/issues/11) |
+| Health checks: dependency-aware readiness, reduced-redundancy reporting, probe tuning | [#12](https://github.com/openeverest/provider-milvus/issues/12) |
 | MixCoord active-standby, deployment groups, Woodpecker | [#17](https://github.com/openeverest/provider-milvus/issues/17), [#18](https://github.com/openeverest/provider-milvus/issues/18), [#19](https://github.com/openeverest/provider-milvus/issues/19) |
 | GPU images, per-component images and pod customization | [#49](https://github.com/openeverest/provider-milvus/issues/49), [#50](https://github.com/openeverest/provider-milvus/issues/50) |
 | Version management, scaling and autoscaling | [#14](https://github.com/openeverest/provider-milvus/issues/14), [#15](https://github.com/openeverest/provider-milvus/issues/15) |
@@ -28,7 +29,6 @@ truth; this page summarizes it. What works today is listed under
 
 | Area | Issue |
 |---|---|
-| Health checks: probe configuration, component health | [#12](https://github.com/openeverest/provider-milvus/issues/12) |
 | Logging: level, destinations, OpenEverest integration | [#13](https://github.com/openeverest/provider-milvus/issues/13) |
 | Maintenance windows and approval gates | [#16](https://github.com/openeverest/provider-milvus/issues/16) |
 | CDC | [#20](https://github.com/openeverest/provider-milvus/issues/20) |
