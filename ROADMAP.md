@@ -15,16 +15,14 @@ truth; this page summarizes it. What works today is listed under
 | Prometheus PodMonitor | [#11](https://github.com/openeverest/provider-milvus/issues/11) |
 | MixCoord active-standby, deployment groups, Woodpecker | [#17](https://github.com/openeverest/provider-milvus/issues/17), [#18](https://github.com/openeverest/provider-milvus/issues/18), [#19](https://github.com/openeverest/provider-milvus/issues/19) |
 | GPU images, per-component images and pod customization | [#49](https://github.com/openeverest/provider-milvus/issues/49), [#50](https://github.com/openeverest/provider-milvus/issues/50) |
-| Unit tests | [#21](https://github.com/openeverest/provider-milvus/issues/21) |
+| Version management, scaling and autoscaling | [#14](https://github.com/openeverest/provider-milvus/issues/14), [#15](https://github.com/openeverest/provider-milvus/issues/15) |
+| Unit, integration, end-to-end and conformance tests, live version matrix | [#21](https://github.com/openeverest/provider-milvus/issues/21), [#22](https://github.com/openeverest/provider-milvus/issues/22), [#23](https://github.com/openeverest/provider-milvus/issues/23), [#24](https://github.com/openeverest/provider-milvus/issues/24) |
 
 ## In progress
 
 | Area | Remaining | Issue |
 |---|---|---|
-| Version management | Compatibility matrix validation | [#15](https://github.com/openeverest/provider-milvus/issues/15) |
-| Integration tests | Component scaling, dependency verification | [#22](https://github.com/openeverest/provider-milvus/issues/22) |
-| End-to-end tests | Scaling and backup/restore workflows | [#23](https://github.com/openeverest/provider-milvus/issues/23) |
-| Example manifests | Multi-AZ, monitoring and logging | [#27](https://github.com/openeverest/provider-milvus/issues/27) |
+| Example manifests | Logging | [#27](https://github.com/openeverest/provider-milvus/issues/27) |
 
 ## Planned
 
@@ -32,10 +30,8 @@ truth; this page summarizes it. What works today is listed under
 |---|---|
 | Health checks: probe configuration, component health | [#12](https://github.com/openeverest/provider-milvus/issues/12) |
 | Logging: level, destinations, OpenEverest integration | [#13](https://github.com/openeverest/provider-milvus/issues/13) |
-| Safe horizontal scaling of data and query nodes | [#14](https://github.com/openeverest/provider-milvus/issues/14) |
 | Maintenance windows and approval gates | [#16](https://github.com/openeverest/provider-milvus/issues/16) |
 | CDC | [#20](https://github.com/openeverest/provider-milvus/issues/20) |
-| Conformance tests | [#24](https://github.com/openeverest/provider-milvus/issues/24) |
 | Architecture documentation and usage guide | [#25](https://github.com/openeverest/provider-milvus/issues/25), [#26](https://github.com/openeverest/provider-milvus/issues/26) |
 | Performance and resource efficiency | [#28](https://github.com/openeverest/provider-milvus/issues/28), [#29](https://github.com/openeverest/provider-milvus/issues/29) |
 
