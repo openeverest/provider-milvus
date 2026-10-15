@@ -93,6 +93,20 @@ func TestStatusReadyWithoutMessageWhenFullyReady(t *testing.T) {
 	assert.Empty(t, status.Message)
 }
 
+// Seen live: with etcd gone the operator still reported Healthy for about
+// 45s while the standalone pod was already unready.
+func TestStatusWorkloadWithoutReadyPodsIsNotReady(t *testing.T) {
+	c := newTestContext(t, corev1alpha1.InstanceSpec{})
+	require.NoError(t, c.Client().Create(context.Background(), newMilvusCR(milvusapi.StatusHealthy, testEndpoint)))
+	require.NoError(t, c.Client().Create(context.Background(), milvusDeployment("test-milvus-milvus-standalone", "standalone", 1, 0)))
+	require.NoError(t, c.Client().Create(context.Background(), releaseStatefulSet("test-milvus-etcd", "test-milvus-etcd", 3, 2)))
+
+	status, err := New().Status(c)
+	require.NoError(t, err)
+	assert.Equal(t, corev1alpha1.InstancePhaseProvisioning, status.Phase)
+	assert.Equal(t, "Milvus is unavailable: etcd 2/3 ready, standalone 0/1 ready", status.Message)
+}
+
 func TestEnqueueDependencyInstance(t *testing.T) {
 	tests := []struct {
 		release string

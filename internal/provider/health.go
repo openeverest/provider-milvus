@@ -56,8 +56,9 @@ type workloadReplicas struct {
 }
 
 // shortWorkloads describes the Milvus components and bundled dependencies
-// running fewer ready pods than desired, e.g. "queryNode 1/2 ready".
-func shortWorkloads(c *controller.Context) ([]string, error) {
+// running fewer ready pods than desired, e.g. "queryNode 1/2 ready"; down
+// reports whether any of them has no ready pod at all.
+func shortWorkloads(c *controller.Context) (short []string, down bool, err error) {
 	replicas := map[string]*workloadReplicas{}
 	count := func(name string, desired *int32, ready int32) {
 		want := int32(1)
@@ -77,7 +78,7 @@ func shortWorkloads(c *controller.Context) ([]string, error) {
 
 	deployments := &appsv1.DeploymentList{}
 	if err := c.List(deployments); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	for i := range deployments.Items {
 		d := &deployments.Items[i]
@@ -85,21 +86,21 @@ func shortWorkloads(c *controller.Context) ([]string, error) {
 	}
 	statefulSets := &appsv1.StatefulSetList{}
 	if err := c.List(statefulSets); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	for i := range statefulSets.Items {
 		s := &statefulSets.Items[i]
 		count(workloadName(c.Name(), s), s.Spec.Replicas, s.Status.ReadyReplicas)
 	}
 
-	var short []string
 	for name, r := range replicas {
 		if r.ready < r.desired {
 			short = append(short, fmt.Sprintf("%s %d/%d ready", name, r.ready, r.desired))
+			down = down || r.ready == 0
 		}
 	}
 	sort.Strings(short)
-	return short, nil
+	return short, down, nil
 }
 
 // workloadName names a workload of this instance as users know it: the

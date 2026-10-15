@@ -350,7 +350,9 @@ The instance is `Ready` only when Milvus is healthy and the operator's checks
 on etcd, object storage and the message stream pass; otherwise
 `status.message` names the failing check. A `Ready` instance with pods missing
 (Milvus components or the bundled etcd, MinIO and Pulsar) stays `Ready` and
-lists them, e.g. `serving with reduced redundancy: etcd 2/3 ready, queryNode 1/2 ready`.
+lists them, e.g. `serving with reduced redundancy: etcd 2/3 ready, queryNode 1/2 ready`;
+once any of them has no ready pod at all the instance leaves `Ready`
+(`Milvus is unavailable: ...`).
 Per-component pod counts are in `status.components`.
 
 Milvus containers get the operator's startup, liveness and readiness probes on
@@ -604,6 +606,7 @@ kubectl logs -n everest-system deploy/provider-milvus -f
 | A spec change has no effect | The provider rejected it; the reason is in the provider logs |
 | Restore refused | Restores need Milvus 2.6.12 or newer on the target instance |
 | `Instance` leaves `Ready` with `a Milvus dependency is not ready` | etcd, object storage or the message stream is unreachable; the message carries the operator's check result |
+| `Instance` leaves `Ready` with `Milvus is unavailable` | A Milvus component or bundled dependency has no ready pod; `kubectl get pods` in the instance namespace |
 | `Ready` with `serving with reduced redundancy` | Some pods are not ready; the message lists each workload as ready/desired, e.g. `etcd 2/3 ready` |
 | Volumes left behind after delete | The bundled etcd, MinIO and Pulsar PVCs are deleted with the instance; a StorageClass with `reclaimPolicy: Retain` keeps the underlying volumes |
 

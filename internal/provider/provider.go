@@ -450,9 +450,14 @@ func (p *Provider) Status(c *controller.Context) (controller.Status, error) {
 			return status, nil
 		}
 		status := controller.ReadyWithConnectionDetails(details)
-		short, err := shortWorkloads(c)
+		short, down, err := shortWorkloads(c)
 		if err != nil {
 			return controller.Status{}, err
+		}
+		// The operator notices a workload with no ready pod only after its
+		// Deployment stops being Available.
+		if down {
+			return controller.Provisioning("Milvus is unavailable: " + strings.Join(short, ", ")), nil
 		}
 		if len(short) > 0 {
 			status.Message = "serving with reduced redundancy: " + strings.Join(short, ", ")

@@ -68,7 +68,7 @@ spec:
         - assert:
             file: 11-assert.yaml
 
-    - name: reduced-redundancy
+    - name: dependency-without-pods
       try:
         - apply:
             file: 13-short-dependency.yaml
