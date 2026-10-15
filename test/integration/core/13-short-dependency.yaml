@@ -1,0 +1,24 @@
+# A bundled dependency workload, as the operator's Helm install labels it,
+# whose only pod can never be scheduled, so it stays at 0/1 ready.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-instance-etcd
+  annotations:
+    meta.helm.sh/release-name: test-instance-etcd
+spec:
+  replicas: 1
+  serviceName: test-instance-etcd
+  selector:
+    matchLabels:
+      app: test-instance-etcd
+  template:
+    metadata:
+      labels:
+        app: test-instance-etcd
+    spec:
+      nodeSelector:
+        provider-milvus.test/unschedulable: "true"
+      containers:
+        - name: etcd
+          image: registry.k8s.io/pause:3.10

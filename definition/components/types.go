@@ -31,6 +31,37 @@ type MilvusParameters struct {
 	// Autoscaling lets a HorizontalPodAutoscaler scale the component between
 	// its replicas and MaxReplicas. Supported on proxy, dataNode and queryNode.
 	Autoscaling *Autoscaling `json:"autoscaling,omitempty"`
+	// Probes tunes the health checks of this component's Milvus container,
+	// e.g. a longer startup allowance for query nodes loading large
+	// collections. Unset fields keep the operator's defaults.
+	Probes *Probes `json:"probes,omitempty"`
+}
+
+// Probes tunes the startup, liveness and readiness probes. The checks
+// themselves (the Milvus health port) are fixed.
+type Probes struct {
+	// Startup gates the other probes until Milvus has started; failing it
+	// restarts the container. Defaults: period 10s, timeout 3s, 18 failures
+	// (3 minutes).
+	Startup *ProbeTuning `json:"startup,omitempty"`
+	// Liveness restarts the container when it fails. Defaults: period 15s,
+	// timeout 10s, 3 failures.
+	Liveness *ProbeTuning `json:"liveness,omitempty"`
+	// Readiness takes the pod out of the Service when it fails. Defaults:
+	// period 15s, timeout 3s, 2 failures.
+	Readiness *ProbeTuning `json:"readiness,omitempty"`
+}
+
+// ProbeTuning overrides the timing of one probe.
+type ProbeTuning struct {
+	// InitialDelaySeconds waits before the first check.
+	InitialDelaySeconds *int32 `json:"initialDelaySeconds,omitempty"`
+	// PeriodSeconds is the time between checks.
+	PeriodSeconds *int32 `json:"periodSeconds,omitempty"`
+	// TimeoutSeconds is how long one check may take.
+	TimeoutSeconds *int32 `json:"timeoutSeconds,omitempty"`
+	// FailureThreshold is how many consecutive failures count as failed.
+	FailureThreshold *int32 `json:"failureThreshold,omitempty"`
 }
 
 // Autoscaling configures a HorizontalPodAutoscaler for one component. The

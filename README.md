@@ -70,6 +70,7 @@ provider itself is covered under [Installation](#installation).
 | Pod scheduling | ✅ | Per-component `schedulingPolicy` (affinity, tolerations, node selector, topology spread, scheduler); not applied to bundled dependencies |
 | Pod customization | ✅ | Per-component `parameters.pod`: annotations, env, volumes, volume mounts, container security context, init containers |
 | Monitoring | ✅ | Prometheus: a PodMonitor for the Milvus components via `topology.parameters.monitoring.prometheus`; requires the Prometheus Operator |
+| Health checks | ✅ | `Ready` needs Milvus and its etcd, object storage and message stream healthy; reduced redundancy is reported in `status.message`; per-component probe tuning via `parameters.probes` |
 | TLS | ❌ | |
 
 Stateful workloads additionally report:
@@ -343,6 +344,35 @@ spec:
             release: kube-prometheus-stack
 ```
 
+### Check health
+
+The instance is `Ready` only when Milvus is healthy and the operator's checks
+on etcd, object storage and the message stream pass; otherwise
+`status.message` names the failing check. A `Ready` instance with pods missing
+(Milvus components or the bundled etcd, MinIO and Pulsar) stays `Ready` and
+lists them, e.g. `serving with reduced redundancy: etcd 2/3 ready, queryNode 1/2 ready`;
+once any of them has no ready pod at all the instance leaves `Ready`
+(`Milvus is unavailable: ...`).
+Per-component pod counts are in `status.components`.
+
+Milvus containers get the operator's startup, liveness and readiness probes on
+the health port. Tune their timing per component with `parameters.probes`,
+e.g. to give query nodes loading large collections more than the default
+3 minutes to start. Unset fields keep the defaults; changing probes rolls the
+component's pods.
+
+```yaml
+spec:
+  components:
+    queryNode:
+      parameters:
+        probes:
+          startup:
+            failureThreshold: 60   # 60 x 10s = 10 minutes
+          readiness:
+            periodSeconds: 10
+```
+
 ### Back up and restore
 
 Backups use the `milvus-backup` BackupClass. For each Backup, Restore or
@@ -543,8 +573,11 @@ code generation, and the backup/restore interfaces are documented once for all p
 
 - **Unit tests** — `make test-unit`.
 - **Integration tests** — chainsaw suites under `test/integration/`, run with the operator
-  scaled to 0. The `core/` suite covers create, authentication, exposure, scheduling and
-  delete. See [test/integration/README.md](test/integration/README.md).
+  scaled to 0. The `core/` suite covers create, authentication, dependency health,
+  exposure, scheduling and delete; `scaling/` covers scale-out and autoscaling;
+  `features/` covers engine configuration, pod customization, deployment groups, probes,
+  monitoring, upgrade and downgrade rejection, external dependencies and Pulsar.
+  See [test/integration/README.md](test/integration/README.md).
 - **Live end-to-end tests** — `make test-e2e-live` runs real standalone and cluster instances
   on the current cluster with the real operator: smoke test (pymilvus), backup and restore,
   upgrade with data, rejected downgrade, scaling, autoscaling, and clean deletion.
@@ -575,6 +608,9 @@ kubectl logs -n everest-system deploy/provider-milvus -f
 | Operator resource created but no pods | Inspect the operator's custom resource status — the failure is upstream |
 | A spec change has no effect | The provider rejected it; the reason is in the provider logs |
 | Restore refused | Restores need Milvus 2.6.12 or newer on the target instance |
+| `Instance` leaves `Ready` with `a Milvus dependency is not ready` | etcd, object storage or the message stream is unreachable; the message carries the operator's check result |
+| `Instance` leaves `Ready` with `Milvus is unavailable` | A Milvus component or bundled dependency has no ready pod; `kubectl get pods` in the instance namespace |
+| `Ready` with `serving with reduced redundancy` | Some pods are not ready; the message lists each workload as ready/desired, e.g. `etcd 2/3 ready` |
 | Volumes left behind after delete | The bundled etcd, MinIO and Pulsar PVCs are deleted with the instance; a StorageClass with `reclaimPolicy: Retain` keeps the underlying volumes |
 
 ## Contributing

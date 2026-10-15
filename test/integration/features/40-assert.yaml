@@ -1,0 +1,53 @@
+# Expected outcome of the create-deps step: external etcd and object storage
+# are referenced, not installed, and Pulsar is bundled with the requested
+# sizing.
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: deps
+spec:
+  mode: cluster
+  config:
+    etcd:
+      rootPath: chainsaw-deps
+    # Woodpecker and Pulsar topics follow the etcd root path.
+    msgChannel:
+      chanNamePrefix:
+        cluster: chainsaw-deps
+    minio:
+      bucketName: chainsaw-bucket
+      rootPath: deps
+      useSSL: true
+  dependencies:
+    etcd:
+      external: true
+      endpoints:
+        - etcd.example.internal:2379
+      (inCluster == null): true
+    storage:
+      external: true
+      endpoint: s3.example.internal:443
+      secretRef: deps-s3
+      (inCluster == null): true
+    msgStreamType: pulsar
+    pulsar:
+      inCluster:
+        deletionPolicy: Delete
+        pvcDeletion: true
+        values:
+          broker:
+            replicaCount: 1
+          bookkeeper:
+            replicaCount: 2
+            volumes:
+              journal:
+                size: 2Gi
+              ledgers:
+                size: 3Gi
+          zookeeper:
+            replicaCount: 1
+            volumes:
+              data:
+                size: 1Gi
+          proxy:
+            replicaCount: 1

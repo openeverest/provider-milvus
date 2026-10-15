@@ -1,0 +1,61 @@
+# Cluster Instance exercising the per-component settings that are pure
+# translation onto the Milvus CR: engine configuration, pod customization,
+# deployment groups, probe tuning and Prometheus monitoring. Starts one
+# version behind so the suite can upgrade it.
+apiVersion: core.openeverest.io/v1alpha1
+kind: Instance
+metadata:
+  name: features
+spec:
+  providerRef:
+    name: milvus
+  version: "2.6.15"
+  topology:
+    type: cluster
+    parameters:
+      monitoring:
+        prometheus:
+          enabled: true
+          interval: 30s
+          podMonitorLabels:
+            release: chainsaw
+  components:
+    proxy:
+      type: milvus
+      replicas: 1
+    mixCoord:
+      type: milvus
+      replicas: 1
+    dataNode:
+      type: milvus
+      replicas: 1
+    streamingNode:
+      type: milvus
+      replicas: 1
+    queryNode:
+      type: milvus
+      replicas: 2
+      parameters:
+        configuration: |
+          queryNode:
+            gracefulTime: 1000
+        pod:
+          annotations:
+            k8s.v1.cni.cncf.io/networks: chainsaw-net
+          env:
+            - name: CHAINSAW_ENV
+              value: "on"
+        groups:
+          - name: pool-a
+            replicas: 1
+            nodeSelector:
+              pool: a
+          - name: pool-b
+            replicas: 1
+            nodeSelector:
+              pool: b
+        probes:
+          startup:
+            failureThreshold: 60
+          readiness:
+            periodSeconds: 10

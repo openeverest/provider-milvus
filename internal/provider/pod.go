@@ -125,6 +125,9 @@ func validateComponentParameters(c *controller.Context) error {
 		if err := validateAutoscaling(name, component, params); err != nil {
 			return err
 		}
+		if err := validateProbes(name, params.Probes); err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -59,8 +59,16 @@ type ComponentSpec struct {
 	Volumes                   []Values                          `json:"volumes,omitempty"`
 	VolumeMounts              []corev1.VolumeMount              `json:"volumeMounts,omitempty"`
 	// SecurityContext applies to the Milvus container, not the pod.
-	SecurityContext    Values `json:"securityContext,omitempty"`
-	ServiceAccountName string `json:"serviceAccountName,omitempty"`
+	SecurityContext    Values  `json:"securityContext,omitempty"`
+	ServiceAccountName string  `json:"serviceAccountName,omitempty"`
+	Probes             *Probes `json:"probes,omitempty"`
+}
+
+// Probes replaces the operator's default probes; a nil probe keeps its default.
+type Probes struct {
+	StartupProbe   *corev1.Probe `json:"startupProbe,omitempty"`
+	LivenessProbe  *corev1.Probe `json:"livenessProbe,omitempty"`
+	ReadinessProbe *corev1.Probe `json:"readinessProbe,omitempty"`
 }
 
 // Component is a generic Milvus component with replicas and image metadata.

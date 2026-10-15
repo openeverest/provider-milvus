@@ -1,0 +1,15 @@
+# Expected outcome of the upgrade step: every component moves to the new
+# bundle's image and the operator rolls them in dependency order.
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: features
+spec:
+  components:
+    image: milvusdb/milvus:v2.6.25
+    version: 2.6.25
+    imageUpdateMode: rollingUpgrade
+    proxy:
+      image: milvusdb/milvus:v2.6.25
+    queryNode:
+      image: milvusdb/milvus:v2.6.25

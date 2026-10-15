@@ -12,8 +12,9 @@ metadata:
   name: core
 spec:
   description: |
-    Lifecycle of a standalone Instance: create, authenticate, expose via
-    NodePort and LoadBalancer, set a pod scheduling policy, and delete.
+    Lifecycle of a standalone Instance: create, authenticate, report
+    dependency health, expose via NodePort and LoadBalancer, set a pod
+    scheduling policy, and delete.
 
   # Collect diagnostics when a step fails.
   catch:
@@ -49,6 +50,41 @@ spec:
                 -p "{\"status\":{\"status\":\"Healthy\",\"observedGeneration\":$generation}}" --type=merge
         - assert:
             file: 11-assert.yaml
+
+    # The operator's Healthy ignores its own etcd/storage/message stream
+    # checks; the provider must not.
+    - name: dependency-not-ready
+      try:
+        - script:
+            content: |
+              kubectl patch milvuses.milvus.io/test-instance --subresource status -n $NAMESPACE --type=merge \
+                -p '{"status":{"conditions":[{"type":"StorageReady","status":"False","reason":"StorageNotReady","message":"connection refused"}]}}'
+        - assert:
+            file: 12-assert.yaml
+        - script:
+            content: |
+              kubectl patch milvuses.milvus.io/test-instance --subresource status -n $NAMESPACE --type=merge \
+                -p '{"status":{"conditions":[{"type":"StorageReady","status":"True","reason":"StorageReady"}]}}'
+        - assert:
+            file: 11-assert.yaml
+
+    - name: dependency-without-pods
+      try:
+        - apply:
+            file: 13-short-dependency.yaml
+        - assert:
+            file: 13-assert.yaml
+        - delete:
+            file: 13-short-dependency.yaml
+        - assert:
+            resource:
+              apiVersion: core.openeverest.io/v1alpha1
+              kind: Instance
+              metadata:
+                name: test-instance
+              status:
+                phase: Ready
+                (message == null || message == ''): true
 
     - name: expose-node-port
       try:

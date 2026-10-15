@@ -1,0 +1,10 @@
+# Expected outcome of the dependency-without-pods step: a bundled dependency
+# with no ready pod takes the Instance out of Ready, even though the operator
+# (scaled to 0 here) still says Healthy.
+apiVersion: core.openeverest.io/v1alpha1
+kind: Instance
+metadata:
+  name: test-instance
+status:
+  phase: Provisioning
+  message: "Milvus is unavailable: etcd 0/1 ready"

@@ -1,0 +1,10 @@
+# Expected outcome of the dependency-not-ready step: the operator still reports
+# Milvus Healthy, but a failing object storage check takes the Instance out of
+# Ready and names the failure.
+apiVersion: core.openeverest.io/v1alpha1
+kind: Instance
+metadata:
+  name: test-instance
+status:
+  phase: Provisioning
+  message: "a Milvus dependency is not ready: StorageReady: connection refused"

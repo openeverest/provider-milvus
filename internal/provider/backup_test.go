@@ -8,6 +8,7 @@ import (
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,7 +33,7 @@ func fakeClientBuilder(t *testing.T) *fake.ClientBuilder {
 	t.Helper()
 	scheme := runtime.NewScheme()
 	for _, add := range []func(*runtime.Scheme) error{
-		corev1alpha1.AddToScheme, corev1.AddToScheme, batchv1.AddToScheme,
+		corev1alpha1.AddToScheme, corev1.AddToScheme, batchv1.AddToScheme, appsv1.AddToScheme,
 		backupv1alpha1.AddToScheme, milvusapi.AddToScheme, monitoringv1.AddToScheme,
 	} {
 		require.NoError(t, add(scheme))
