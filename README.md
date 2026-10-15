@@ -573,8 +573,11 @@ code generation, and the backup/restore interfaces are documented once for all p
 
 - **Unit tests** — `make test-unit`.
 - **Integration tests** — chainsaw suites under `test/integration/`, run with the operator
-  scaled to 0. The `core/` suite covers create, authentication, exposure, scheduling and
-  delete. See [test/integration/README.md](test/integration/README.md).
+  scaled to 0. The `core/` suite covers create, authentication, dependency health,
+  exposure, scheduling and delete; `scaling/` covers scale-out and autoscaling;
+  `features/` covers engine configuration, pod customization, deployment groups, probes,
+  monitoring, upgrade and downgrade rejection, external dependencies and Pulsar.
+  See [test/integration/README.md](test/integration/README.md).
 - **Live end-to-end tests** — `make test-e2e-live` runs real standalone and cluster instances
   on the current cluster with the real operator: smoke test (pymilvus), backup and restore,
   upgrade with data, rejected downgrade, scaling, autoscaling, and clean deletion.

@@ -1,0 +1,66 @@
+# Cluster Instance on external etcd and external S3-compatible object
+# storage, with Pulsar instead of the default Woodpecker message stream.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: deps-s3
+type: Opaque
+stringData:
+  accesskey: chainsaw-access
+  secretkey: chainsaw-secret
+---
+apiVersion: core.openeverest.io/v1alpha1
+kind: Instance
+metadata:
+  name: deps
+spec:
+  providerRef:
+    name: milvus
+  topology:
+    type: cluster
+    parameters:
+      dependencies:
+        messageStreamType: pulsar
+        etcd:
+          external: true
+          endpoints:
+            - etcd.example.internal:2379
+          rootPath: chainsaw-deps
+        storage:
+          external: true
+          endpoint: s3.example.internal:443
+          bucket: chainsaw-bucket
+          rootPath: deps
+          credentialsSecret: deps-s3
+          useSSL: true
+        pulsar:
+          broker:
+            replicas: 1
+          bookkeeper:
+            replicas: 2
+            journal:
+              size: 2Gi
+            ledgers:
+              size: 3Gi
+          zookeeper:
+            replicas: 1
+            data:
+              size: 1Gi
+          proxy:
+            replicas: 1
+  components:
+    proxy:
+      type: milvus
+      replicas: 1
+    mixCoord:
+      type: milvus
+      replicas: 1
+    dataNode:
+      type: milvus
+      replicas: 1
+    queryNode:
+      type: milvus
+      replicas: 1
+    streamingNode:
+      type: milvus
+      replicas: 1

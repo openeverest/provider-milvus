@@ -1,0 +1,153 @@
+---
+# Translation suite for the Milvus provider.
+#
+# The Milvus operator is scaled to 0 in CI (see the deploy-provider-ci Make
+# target), so these steps check what the provider writes onto the Milvus CR
+# for features that are pure translation: engine configuration, pod
+# customization, deployment groups, probe tuning, monitoring, version
+# upgrade and downgrade rejection, external dependencies and Pulsar.
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: features
+spec:
+  description: |
+    Per-component settings, monitoring, version changes and external
+    dependencies on cluster Instances.
+
+  catch:
+    - script:
+        content: kubectl -n $NAMESPACE get instance,milvuses.milvus.io,podmonitors.monitoring.coreos.com -o yaml
+    - podLogs:
+        namespace: provider-system
+        selector: app.kubernetes.io/name=provider-milvus
+        tail: 100
+
+  steps:
+    - name: provider-deployed
+      try:
+        - assert:
+            file: 00-assert.yaml
+
+    # Monitoring is validated against the PodMonitor CRD, which the CI
+    # cluster does not ship.
+    - name: install-podmonitor-crd
+      try:
+        - script:
+            content: |
+              kubectl get crd podmonitors.monitoring.coreos.com >/dev/null 2>&1 ||
+                kubectl apply --server-side -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.94.1/example/prometheus-operator-crd/monitoring.coreos.com_podmonitors.yaml
+              kubectl wait --for condition=established --timeout=60s crd/podmonitors.monitoring.coreos.com
+
+    - name: create-features
+      try:
+        - apply:
+            file: 10-create-features.yaml
+        - assert:
+            file: 10-assert.yaml
+
+    - name: upgrade
+      try:
+        - patch:
+            resource:
+              apiVersion: core.openeverest.io/v1alpha1
+              kind: Instance
+              metadata:
+                name: features
+              spec:
+                version: "2.6.25"
+        - assert:
+            file: 20-assert.yaml
+
+    - name: downgrade-rejected
+      try:
+        - patch:
+            resource:
+              apiVersion: core.openeverest.io/v1alpha1
+              kind: Instance
+              metadata:
+                name: features
+              spec:
+                version: "2.6.15"
+        - assert:
+            file: 30-assert.yaml
+        - patch:
+            resource:
+              apiVersion: core.openeverest.io/v1alpha1
+              kind: Instance
+              metadata:
+                name: features
+              spec:
+                version: "2.6.25"
+        - assert:
+            resource:
+              apiVersion: core.openeverest.io/v1alpha1
+              kind: Instance
+              metadata:
+                name: features
+              status:
+                (phase != 'Failed'): true
+
+    - name: monitoring-off
+      try:
+        - patch:
+            resource:
+              apiVersion: core.openeverest.io/v1alpha1
+              kind: Instance
+              metadata:
+                name: features
+              spec:
+                topology:
+                  parameters:
+                    monitoring:
+                      prometheus:
+                        enabled: false
+        - wait:
+            apiVersion: monitoring.coreos.com/v1
+            kind: PodMonitor
+            name: features-metrics
+            for:
+              deletion: {}
+
+    - name: external-dependencies-and-pulsar
+      try:
+        - apply:
+            file: 40-create-deps.yaml
+        - assert:
+            file: 40-assert.yaml
+        # No bundled MinIO, so no generated MinIO credentials.
+        - error:
+            resource:
+              apiVersion: v1
+              kind: Secret
+              metadata:
+                name: deps-minio
+
+    # The operator is scaled to 0, so clear the Milvus finalizers manually.
+    - name: delete-instances
+      try:
+        - script:
+            content: |
+              kubectl -n $NAMESPACE delete instance/features instance/deps --wait=false
+              for name in features deps; do
+                kubectl -n $NAMESPACE patch milvuses.milvus.io/$name \
+                  -p '{"metadata":{"finalizers":null}}' --type merge || true
+              done
+        - wait:
+            apiVersion: core.openeverest.io/v1alpha1
+            kind: Instance
+            name: features
+            for:
+              deletion: {}
+        - wait:
+            apiVersion: core.openeverest.io/v1alpha1
+            kind: Instance
+            name: deps
+            for:
+              deletion: {}
+        - wait:
+            apiVersion: milvus.io/v1beta1
+            kind: Milvus
+            name: deps
+            for:
+              deletion: {}

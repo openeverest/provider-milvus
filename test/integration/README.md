@@ -6,8 +6,13 @@ using [chainsaw](https://kyverno.github.io/chainsaw/). They apply OpenEverest
 and verify status propagation back to the `Instance`.
 
 The `core/` suite runs a standalone `Instance` through its lifecycle: create,
-authentication, readiness, NodePort and LoadBalancer exposure, a pod scheduling
-policy update, and delete. For more suites to model new ones on, see the
+authentication, readiness, dependency health, NodePort and LoadBalancer
+exposure, a pod scheduling policy update, and delete. `scaling/` scales a
+cluster out and toggles autoscaling. `features/` checks what the provider
+writes onto the Milvus CR for engine configuration, pod customization,
+deployment groups, probe tuning, Prometheus monitoring, version upgrade and
+downgrade rejection, external etcd/object storage and Pulsar. For more suites
+to model new ones on, see the
 [provider-percona-server-mongodb test suites](https://github.com/openeverest/provider-percona-server-mongodb/tree/main/test/integration).
 
 ## Layout
