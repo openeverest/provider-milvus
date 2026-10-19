@@ -757,8 +757,20 @@ ui:
             policy:
               uiType: widget
               widgetType: podSchedulingPolicy
+        storageClass:
+          uiType: select
+          path: spec.topology.parameters.dependencies.storageClassName
+          dataSource:
+            provider: storageClasses
+          fieldParams:
+            label: Storage class
+            helperText: StorageClass of the bundled etcd, object storage and Pulsar volumes.
+            modes:
+              edit:
+                disabled: true
       componentsOrder:
         - configuration
+        - storageClass
         - podSchedulingPolicy
   sectionsOrder:
     - basicInfo

@@ -546,8 +546,11 @@ chart upgrades the operator as well.
 Worth knowing:
 
 - **Object storage size** — `topology.parameters.dependencies.storage.persistence.size`
-  sizes the bundled MinIO and can only grow. It is the only storage knob: the
-  Milvus components keep their data in the object storage.
+  sizes the bundled MinIO and can only grow. The Milvus components keep their
+  data in the object storage and take no storage of their own.
+- **Storage class** — `topology.parameters.dependencies.storageClassName` sets the
+  StorageClass of every bundled dependency volume (etcd, MinIO, and Pulsar in
+  cluster mode). Empty uses the cluster default. It is fixed at creation.
 - **Message stream** — cluster instances keep their write-ahead log in the object
   storage (Woodpecker) unless `dependencies.messageStreamType` is `pulsar`. It is
   fixed at creation, like the topology and the etcd and storage `rootPath`.
@@ -635,7 +638,7 @@ kubectl logs -n everest-system deploy/provider-milvus -f
 | `Instance` leaves `Ready` with `a Milvus dependency is not ready` | etcd, object storage or the message stream is unreachable; the message carries the operator's check result |
 | `Instance` leaves `Ready` with `Milvus is unavailable` | A Milvus component or bundled dependency has no ready pod; `kubectl get pods` in the instance namespace |
 | `Ready` with `serving with reduced redundancy` | Some pods are not ready; the message lists each workload as ready/desired, e.g. `etcd 2/3 ready` |
-| Volumes left behind after delete | The bundled etcd, MinIO and Pulsar PVCs are deleted with the instance; a StorageClass with `reclaimPolicy: Retain` keeps the underlying volumes |
+| Volumes left behind after delete | The bundled etcd, MinIO and Pulsar PVCs are deleted with the instance; a StorageClass with `reclaimPolicy: Retain` keeps the underlying volumes. Pick a `Delete` class with `dependencies.storageClassName` when the cluster default retains |
 
 ## Contributing
 

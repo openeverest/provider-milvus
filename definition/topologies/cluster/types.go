@@ -29,4 +29,8 @@ type ClusterDependencies struct {
 	Pulsar *dependencies.Pulsar `json:"pulsar,omitempty"`
 	// Storage configures the MinIO object storage.
 	Storage *dependencies.Storage `json:"storage,omitempty"`
+	// StorageClassName is the StorageClass of every bundled dependency volume
+	// (etcd, MinIO and Pulsar). Empty uses the cluster default. Cannot be
+	// changed after creation.
+	StorageClassName string `json:"storageClassName,omitempty"`
 }
