@@ -23,4 +23,8 @@ type StandaloneDependencies struct {
 	Etcd *dependencies.Etcd `json:"etcd,omitempty"`
 	// Storage configures the MinIO object storage.
 	Storage *dependencies.Storage `json:"storage,omitempty"`
+	// StorageClassName is the StorageClass of every bundled dependency volume
+	// (etcd and MinIO). Empty uses the cluster default. Cannot be changed
+	// after creation.
+	StorageClassName string `json:"storageClassName,omitempty"`
 }

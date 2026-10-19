@@ -42,12 +42,15 @@ spec:
             volumes:
               journal:
                 size: 2Gi
+                storageClassName: chainsaw-class
               ledgers:
                 size: 3Gi
+                storageClassName: chainsaw-class
           zookeeper:
             replicaCount: 1
             volumes:
               data:
                 size: 1Gi
+                storageClassName: chainsaw-class
           proxy:
             replicaCount: 1

@@ -85,6 +85,10 @@ func validateInstance(c *controller.Context) error {
 		return err
 	}
 
+	if err := validateStorageClassUnchanged(c); err != nil {
+		return err
+	}
+
 	if err := validateNoDowngrade(c); err != nil {
 		return err
 	}
@@ -369,6 +373,41 @@ func validateDataLocationUnchanged(c *controller.Context) error {
 
 // defaultMinioRootPath is the operator's object prefix when none is set.
 const defaultMinioRootPath = "files"
+
+// validateStorageClassUnchanged rejects moving the bundled dependency volumes
+// to another StorageClass: a StatefulSet cannot change its volume claims.
+func validateStorageClassUnchanged(c *controller.Context) error {
+	existing := &milvusapi.Milvus{}
+	if err := c.Get(existing, c.Name()); err != nil || existing.Spec.Dep == nil {
+		return nil
+	}
+	desired, err := BuildMilvusSpec(c)
+	if err != nil {
+		return err
+	}
+	if current, requested := dependencyStorageClass(existing.Spec.Dep), dependencyStorageClass(desired.Dep); current != requested {
+		return fmt.Errorf("dependencies storageClassName cannot be changed from %q to %q", current, requested)
+	}
+	return nil
+}
+
+// dependencyStorageClass is the StorageClass the bundled etcd and MinIO
+// volumes are rendered with, mirroring buildEtcd and buildStorage.
+func dependencyStorageClass(dep *milvusapi.MilvusDependencies) string {
+	if dep == nil {
+		return ""
+	}
+	for _, inCluster := range []*milvusapi.InClusterConfig{dep.Etcd.InCluster, dep.Storage.InCluster} {
+		if inCluster == nil {
+			continue
+		}
+		persistence, _ := inCluster.Values["persistence"].(map[string]any)
+		if storageClass, _ := persistence["storageClass"].(string); storageClass != "" {
+			return storageClass
+		}
+	}
+	return ""
+}
 
 // objectStore names where an instance keeps its objects: the bundled MinIO or
 // an external endpoint and bucket.

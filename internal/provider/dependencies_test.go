@@ -375,6 +375,92 @@ func TestBuildDependenciesPersistenceOverrides(t *testing.T) {
 	assert.Equal(t, map[string]any{"data": map[string]any{"size": "3Gi"}}, zookeeper["volumes"])
 }
 
+func TestBuildDependenciesStorageClass(t *testing.T) {
+	t.Run("standalone etcd and MinIO", func(t *testing.T) {
+		params := standalone.StandaloneTopologyParameters{
+			Dependencies: &standalone.StandaloneDependencies{StorageClassName: "fast-delete"},
+		}
+		c := newTestContext(t, corev1alpha1.InstanceSpec{
+			Topology: &corev1alpha1.TopologySpec{Type: "standalone", Parameters: topologyParams(t, params)},
+		})
+		spec, err := BuildMilvusSpec(c)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]any{"size": "10Gi", "storageClass": "fast-delete"}, spec.Dep.Etcd.InCluster.Values["persistence"])
+		assert.Equal(t, map[string]any{"size": "10Gi", "storageClass": "fast-delete"}, spec.Dep.Storage.InCluster.Values["persistence"])
+	})
+
+	t.Run("cluster Pulsar volumes", func(t *testing.T) {
+		params := cluster.ClusterTopologyParameters{
+			Dependencies: &cluster.ClusterDependencies{
+				MessageStreamType: dependencies.MessageStreamPulsar,
+				StorageClassName:  "fast-delete",
+			},
+		}
+		c := newTestContext(t, corev1alpha1.InstanceSpec{
+			Topology: &corev1alpha1.TopologySpec{Type: "cluster", Parameters: topologyParams(t, params)},
+		})
+		spec, err := BuildMilvusSpec(c)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]any{"size": "10Gi", "storageClass": "fast-delete"}, spec.Dep.Etcd.InCluster.Values["persistence"])
+		assert.Equal(t, map[string]any{"size": "10Gi", "storageClass": "fast-delete"}, spec.Dep.Storage.InCluster.Values["persistence"])
+		bookkeeper := spec.Dep.Pulsar.InCluster.Values["bookkeeper"].(map[string]any)
+		assert.Equal(t, map[string]any{
+			"journal": map[string]any{"size": "5Gi", "storageClassName": "fast-delete"},
+			"ledgers": map[string]any{"size": "10Gi", "storageClassName": "fast-delete"},
+		}, bookkeeper["volumes"])
+		zookeeper := spec.Dep.Pulsar.InCluster.Values["zookeeper"].(map[string]any)
+		assert.Equal(t, map[string]any{"data": map[string]any{"size": "5Gi", "storageClassName": "fast-delete"}}, zookeeper["volumes"])
+	})
+}
+
+func TestValidateStorageClassUnchanged(t *testing.T) {
+	existingWith := func(storageClass string) *milvusapi.Milvus {
+		persistence := map[string]any{"size": "10Gi"}
+		if storageClass != "" {
+			persistence["storageClass"] = storageClass
+		}
+		return &milvusapi.Milvus{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-milvus", Namespace: "db"},
+			Spec: milvusapi.MilvusSpec{
+				Mode: milvusapi.MilvusModeStandalone,
+				Dep: &milvusapi.MilvusDependencies{
+					Etcd:    milvusapi.MilvusEtcd{InCluster: &milvusapi.InClusterConfig{Values: milvusapi.Values{"persistence": persistence}}},
+					Storage: milvusapi.MilvusStorage{InCluster: &milvusapi.InClusterConfig{Values: milvusapi.Values{"persistence": persistence}}},
+				},
+			},
+		}
+	}
+	requesting := func(storageClass string) *runtime.RawExtension {
+		return topologyParams(t, standalone.StandaloneTopologyParameters{
+			Dependencies: &standalone.StandaloneDependencies{StorageClassName: storageClass},
+		})
+	}
+	tests := []struct {
+		name      string
+		existing  string
+		requested string
+		wantErr   string
+	}{
+		{name: "default kept"},
+		{name: "class kept", existing: "fast-delete", requested: "fast-delete"},
+		{name: "class set later", requested: "fast-delete", wantErr: `dependencies storageClassName cannot be changed from "" to "fast-delete"`},
+		{name: "class switched", existing: "fast-delete", requested: "slow-retain", wantErr: `dependencies storageClassName cannot be changed from "fast-delete" to "slow-retain"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := newTestContextWithObjects(t, corev1alpha1.InstanceSpec{
+				Topology: &corev1alpha1.TopologySpec{Type: "standalone", Parameters: requesting(tt.requested)},
+			}, existingWith(tt.existing))
+			err := validateInstance(c)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			assert.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
 func TestBuildDependenciesStorageDefaultPersistence(t *testing.T) {
 	// Cluster with no data-bearing component storage falls back to the
 	// predictable MinIO default rather than the chart's oversized value.

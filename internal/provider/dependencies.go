@@ -63,23 +63,25 @@ func buildDependencies(c *controller.Context, topologyType string, storageParam 
 	if topologyType != "cluster" {
 		var params standalone.StandaloneTopologyParameters
 		var etcdParam *dependencies.Etcd
+		storageClass := ""
 		if c.TryDecodeTopologyParameters(&params) && params.Dependencies != nil {
 			etcdParam = params.Dependencies.Etcd
+			storageClass = params.Dependencies.StorageClassName
 		}
 		return &milvusapi.MilvusDependencies{
-			Etcd:    buildEtcd(etcdParam, topologyType),
-			Storage: buildStorage(storageParam),
+			Etcd:    buildEtcd(etcdParam, topologyType, storageClass),
+			Storage: buildStorage(storageParam, storageClass),
 		}
 	}
 
 	deps := clusterDependencyParams(c)
 	dep := &milvusapi.MilvusDependencies{
-		Etcd:          buildEtcd(deps.Etcd, topologyType),
-		Storage:       buildStorage(storageParam),
+		Etcd:          buildEtcd(deps.Etcd, topologyType, deps.StorageClassName),
+		Storage:       buildStorage(storageParam, deps.StorageClassName),
 		MsgStreamType: messageStreamType(c, deps.MessageStreamType),
 	}
 	if dep.MsgStreamType == dependencies.MessageStreamPulsar {
-		dep.Pulsar = buildPulsar(deps.Pulsar)
+		dep.Pulsar = buildPulsar(deps.Pulsar, deps.StorageClassName)
 	}
 	return dep
 }
@@ -191,7 +193,7 @@ func bundledInCluster(values milvusapi.Values) *milvusapi.InClusterConfig {
 
 // buildEtcd renders the etcd dependency, switching to external endpoints when
 // requested, otherwise sizing the bundled cluster.
-func buildEtcd(param *dependencies.Etcd, topologyType string) milvusapi.MilvusEtcd {
+func buildEtcd(param *dependencies.Etcd, topologyType, storageClass string) milvusapi.MilvusEtcd {
 	if param != nil && param.External {
 		return milvusapi.MilvusEtcd{External: true, Endpoints: param.Endpoints}
 	}
@@ -218,7 +220,7 @@ func buildEtcd(param *dependencies.Etcd, topologyType string) milvusapi.MilvusEt
 		values["resources"] = res
 	}
 	if persistenceSize != "" {
-		values["persistence"] = map[string]any{"size": persistenceSize}
+		values["persistence"] = withStorageClass(map[string]any{"size": persistenceSize}, "storageClass", storageClass)
 	}
 	return milvusapi.MilvusEtcd{InCluster: bundledInCluster(values)}
 }
@@ -231,7 +233,7 @@ func buildEtcd(param *dependencies.Etcd, topologyType string) milvusapi.MilvusEt
 // replica tuning (a replica count above one enables MinIO distributed mode).
 // The PVC size comes solely from the storage dependency parameter, falling back
 // to a predictable default.
-func buildStorage(param *dependencies.Storage) milvusapi.MilvusStorage {
+func buildStorage(param *dependencies.Storage, storageClass string) milvusapi.MilvusStorage {
 	if param != nil && param.External {
 		return milvusapi.MilvusStorage{
 			External:  true,
@@ -262,7 +264,7 @@ func buildStorage(param *dependencies.Storage) milvusapi.MilvusStorage {
 		// Docker Hub minio/minio.
 		"image":       map[string]any{"repository": "pgsty/silo", "tag": "RELEASE.2026-09-03T13-18-01Z"},
 		"mcImage":     map[string]any{"repository": "pgsty/mc", "tag": "RELEASE.2026-09-13T00-00-00Z"},
-		"persistence": map[string]any{"size": persistenceSize},
+		"persistence": withStorageClass(map[string]any{"size": persistenceSize}, "storageClass", storageClass),
 	}
 	if res := resourcesToValues(resources); res != nil {
 		values["resources"] = res
@@ -273,7 +275,7 @@ func buildStorage(param *dependencies.Storage) milvusapi.MilvusStorage {
 // buildPulsar renders the Pulsar message-stream dependency, sizing each
 // sub-component (broker, bookkeeper, zookeeper, proxy) or switching to an
 // external endpoint.
-func buildPulsar(param *dependencies.Pulsar) milvusapi.MilvusPulsar {
+func buildPulsar(param *dependencies.Pulsar, storageClass string) milvusapi.MilvusPulsar {
 	if param != nil && param.External {
 		return milvusapi.MilvusPulsar{External: true, Endpoint: param.Endpoint}
 	}
@@ -291,8 +293,8 @@ func buildPulsar(param *dependencies.Pulsar) milvusapi.MilvusPulsar {
 
 	values := milvusapi.Values{
 		"broker":     pulsarComponentValues(broker),
-		"bookkeeper": bookKeeperValues(bookkeeper),
-		"zookeeper":  zooKeeperValues(zookeeper),
+		"bookkeeper": bookKeeperValues(bookkeeper, storageClass),
+		"zookeeper":  zooKeeperValues(zookeeper, storageClass),
 		"proxy":      pulsarComponentValues(proxy),
 	}
 	return milvusapi.MilvusPulsar{InCluster: bundledInCluster(values)}
@@ -373,7 +375,7 @@ func mergePersistence(param, def *dependencies.Persistence) *dependencies.Persis
 
 // bookKeeperValues renders the bookkeeper sub-component (including its journal
 // and ledger volumes) into Helm values.
-func bookKeeperValues(bk dependencies.PulsarBookKeeper) map[string]any {
+func bookKeeperValues(bk dependencies.PulsarBookKeeper, storageClass string) map[string]any {
 	values := map[string]any{}
 	if bk.Replicas != nil {
 		values["replicaCount"] = int(*bk.Replicas)
@@ -383,10 +385,10 @@ func bookKeeperValues(bk dependencies.PulsarBookKeeper) map[string]any {
 	}
 	volumes := map[string]any{}
 	if bk.Journal != nil && bk.Journal.Size != "" {
-		volumes["journal"] = map[string]any{"size": bk.Journal.Size}
+		volumes["journal"] = withStorageClass(map[string]any{"size": bk.Journal.Size}, "storageClassName", storageClass)
 	}
 	if bk.Ledgers != nil && bk.Ledgers.Size != "" {
-		volumes["ledgers"] = map[string]any{"size": bk.Ledgers.Size}
+		volumes["ledgers"] = withStorageClass(map[string]any{"size": bk.Ledgers.Size}, "storageClassName", storageClass)
 	}
 	if len(volumes) > 0 {
 		values["volumes"] = volumes
@@ -396,7 +398,7 @@ func bookKeeperValues(bk dependencies.PulsarBookKeeper) map[string]any {
 
 // zooKeeperValues renders the zookeeper sub-component (including its data
 // volume) into Helm values.
-func zooKeeperValues(zk dependencies.PulsarZooKeeper) map[string]any {
+func zooKeeperValues(zk dependencies.PulsarZooKeeper, storageClass string) map[string]any {
 	values := map[string]any{}
 	if zk.Replicas != nil {
 		values["replicaCount"] = int(*zk.Replicas)
@@ -405,9 +407,19 @@ func zooKeeperValues(zk dependencies.PulsarZooKeeper) map[string]any {
 		values["resources"] = res
 	}
 	if zk.Data != nil && zk.Data.Size != "" {
-		values["volumes"] = map[string]any{"data": map[string]any{"size": zk.Data.Size}}
+		values["volumes"] = map[string]any{"data": withStorageClass(map[string]any{"size": zk.Data.Size}, "storageClassName", storageClass)}
 	}
 	return values
+}
+
+// withStorageClass sets the chart's storage class key on a volume's values.
+// The etcd and MinIO charts name it storageClass, the Pulsar chart
+// storageClassName.
+func withStorageClass(volume map[string]any, key, storageClass string) map[string]any {
+	if storageClass != "" {
+		volume[key] = storageClass
+	}
+	return volume
 }
 
 // mergeResources returns param when it specifies a resource list, falling back

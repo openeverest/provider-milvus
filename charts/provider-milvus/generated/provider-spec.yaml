@@ -3354,6 +3354,8 @@ spec:
                     useSSL:
                       type: boolean
                   type: object
+                storageClassName:
+                  type: string
               type: object
             monitoring:
               properties:
@@ -3475,6 +3477,8 @@ spec:
                     useSSL:
                       type: boolean
                   type: object
+                storageClassName:
+                  type: string
               type: object
             monitoring:
               properties:
@@ -3517,8 +3521,20 @@ spec:
               groupType: toggleable
               label: Pod scheduling policy
               uiType: group
+            storageClass:
+              dataSource:
+                provider: storageClasses
+              fieldParams:
+                helperText: StorageClass of the bundled etcd, object storage and Pulsar volumes.
+                label: Storage class
+                modes:
+                  edit:
+                    disabled: true
+              path: spec.topology.parameters.dependencies.storageClassName
+              uiType: select
           componentsOrder:
             - configuration
+            - storageClass
             - podSchedulingPolicy
           description: Configure advanced Milvus engine settings shared across all components.
           label: Advanced configuration
@@ -4244,8 +4260,20 @@ spec:
               groupType: toggleable
               label: Pod scheduling policy
               uiType: group
+            storageClass:
+              dataSource:
+                provider: storageClasses
+              fieldParams:
+                helperText: StorageClass of the bundled etcd and object storage volumes.
+                label: Storage class
+                modes:
+                  edit:
+                    disabled: true
+              path: spec.topology.parameters.dependencies.storageClassName
+              uiType: select
           componentsOrder:
             - configuration
+            - storageClass
             - podSchedulingPolicy
           description: Configure advanced Milvus engine settings.
           label: Advanced configuration

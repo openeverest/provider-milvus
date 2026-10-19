@@ -1,5 +1,6 @@
 # Cluster Instance on external etcd and external S3-compatible object
-# storage, with Pulsar instead of the default Woodpecker message stream.
+# storage, with Pulsar instead of the default Woodpecker message stream, its
+# volumes on a chosen StorageClass.
 apiVersion: v1
 kind: Secret
 metadata:
@@ -21,6 +22,7 @@ spec:
     parameters:
       dependencies:
         messageStreamType: pulsar
+        storageClassName: chainsaw-class
         etcd:
           external: true
           endpoints:
