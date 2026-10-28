@@ -2,7 +2,7 @@
 {{- if $preset.enabled }}
 ---
 apiVersion: core.openeverest.io/v1alpha1
-kind: ClusterInstancePreset
+kind: InstancePreset
 metadata:
   name: {{ $.Values.provider.shortName }}-{{ $preset.name }}
   labels:
