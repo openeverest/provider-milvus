@@ -3,7 +3,7 @@ module github.com/openeverest/provider-milvus
 go 1.27.1
 
 require (
-	github.com/openeverest/openeverest/v2 v2.0.0-dev.2.0.20261027055245-0730d3d500c1
+	github.com/openeverest/openeverest/v2 v2.0.0-dev.4
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.94.1
 	github.com/prometheus/common v0.70.0
 	github.com/robfig/cron/v3 v3.0.1
