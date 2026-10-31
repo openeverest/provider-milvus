@@ -151,7 +151,7 @@ func operationJobSpec(c *controller.Context, cr *milvusapi.Milvus, location back
 	}
 	backupStore, err := backupStorageObjectStore(c, location.storage, location.rootPath)
 	if err != nil {
-		return backupJobSpec{}, err
+		return backupJobSpec{}, fmt.Errorf("BackupStorage %q: %w", location.storage.Name, err)
 	}
 	tls, err := currentTLS(c)
 	if err != nil {

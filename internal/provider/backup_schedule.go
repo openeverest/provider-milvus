@@ -99,7 +99,8 @@ func scheduleCronJobName(instance, schedule string) string {
 }
 
 // syncBackupSchedules runs one CronJob per enabled schedule, removes the
-// CronJobs of schedules that are gone, and applies retention.
+// CronJobs of schedules that are gone, and applies retention. The CronJobs of
+// a storage that must not be rendered are kept as they are, and none is added.
 func syncBackupSchedules(c *controller.Context) error {
 	desired := map[string]bool{}
 	backup := c.Instance().Spec.Backup
@@ -112,19 +113,31 @@ func syncBackupSchedules(c *controller.Context) error {
 		if err != nil {
 			return err
 		}
-		for _, storage := range backup.Storages {
-			for _, schedule := range storage.Schedules {
+		storages, err := c.BackupStorages()
+		if err != nil {
+			return err
+		}
+		for _, storage := range storages {
+			hold := !storage.Apply()
+			if !hold {
+				if _, err := backupStorageObjectStore(c, storage.Storage, storage.Path); err != nil {
+					c.RejectBackupStorage(storage.Name(), err)
+					hold = true
+				}
+			}
+			for _, schedule := range storage.Entry.Schedules {
 				if !schedule.Enabled {
 					continue
 				}
 				name := scheduleCronJobName(c.Name(), schedule.Name)
 				desired[name] = true
-				if wait != "" {
-					// The Job config needs Milvus's rendered config; keep any
-					// existing CronJob until it can be refreshed.
+				if hold || wait != "" {
+					// Keep the existing CronJob: its storage is held, or the
+					// Job config cannot read Milvus's rendered config yet.
 					continue
 				}
-				if err := applyBackupSchedule(c, cr, name, storage.StorageRef.Name, schedule, suspend); err != nil {
+				location := backupLocation{storage: storage.Storage, rootPath: storage.Path}
+				if err := applyBackupSchedule(c, cr, name, location, schedule, suspend); err != nil {
 					return err
 				}
 			}
@@ -145,7 +158,7 @@ func schedulesSuspended(c *controller.Context) (bool, error) {
 	return activeRestore(c)
 }
 
-func applyBackupSchedule(c *controller.Context, cr *milvusapi.Milvus, name, storageName string, schedule corev1alpha1.InstanceBackupSchedule, suspend bool) error {
+func applyBackupSchedule(c *controller.Context, cr *milvusapi.Milvus, name string, location backupLocation, schedule corev1alpha1.InstanceBackupSchedule, suspend bool) error {
 	if _, err := cron.ParseStandard(schedule.Cron); err != nil || strings.HasPrefix(schedule.Cron, "TZ=") || strings.HasPrefix(schedule.Cron, "CRON_TZ=") {
 		return &controller.BackupConfigError{
 			Reason:  "InvalidSchedule",
@@ -159,17 +172,6 @@ func applyBackupSchedule(c *controller.Context, cr *milvusapi.Milvus, name, stor
 			Message: fmt.Sprintf("schedule %q: invalid parameters: %v", schedule.Name, err),
 		}
 	}
-	bs, err := c.BackupStorage(storageName)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return &controller.BackupConfigError{
-				Reason:  "StorageNotFound",
-				Message: fmt.Sprintf("schedule %q: BackupStorage %q not found", schedule.Name, storageName),
-			}
-		}
-		return err
-	}
-	location := backupLocation{storage: bs, rootPath: backupRootPath(c.Namespace(), c.Name())}
 	spec, err := operationJobSpec(c, cr, location, nil)
 	if err != nil {
 		return &controller.BackupConfigError{Reason: "InvalidStorage", Message: fmt.Sprintf("schedule %q: %v", schedule.Name, err)}
@@ -181,7 +183,7 @@ func applyBackupSchedule(c *controller.Context, cr *milvusapi.Milvus, name, stor
 
 	labels := backupJobLabels(c.Name(), operationCreate)
 	labels[backupScheduleLabel] = schedule.Name
-	labels[backupStorageLabel] = storageName
+	labels[backupStorageLabel] = location.storage.Name
 
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: withLabels(c.ObjectMeta(name), labels),
