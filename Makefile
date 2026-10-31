@@ -187,6 +187,9 @@ install-crds: ## Install OpenEverest CRDs (and Milvus operator CRDs) into the cl
 	kubectl apply -f https://raw.githubusercontent.com/openeverest/openeverest/$(OPENEVEREST_BRANCH)/config/crd/bases/backup.openeverest.io_backups.yaml
 	kubectl apply -f https://raw.githubusercontent.com/openeverest/openeverest/$(OPENEVEREST_BRANCH)/config/crd/bases/backup.openeverest.io_restores.yaml
 	kubectl apply -f https://raw.githubusercontent.com/openeverest/openeverest/$(OPENEVEREST_BRANCH)/config/crd/bases/backup.openeverest.io_backupstorages.yaml
+	kubectl apply -f https://raw.githubusercontent.com/openeverest/openeverest/$(OPENEVEREST_BRANCH)/config/crd/bases/backup.openeverest.io_backupstorageclasses.yaml
+	kubectl wait --for condition=established --timeout=30s crd/backupstorageclasses.backup.openeverest.io
+	kubectl apply -f https://raw.githubusercontent.com/openeverest/openeverest/$(OPENEVEREST_BRANCH)/config/backupstorageclasses/s3.yaml
 	# The Milvus operator chart installs its CRDs by default.
 	# If CRDs are not bundled for a custom install path, install them from the operator chart release.
 
