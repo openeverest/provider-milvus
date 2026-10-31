@@ -87,13 +87,20 @@ func backupFixtures(version string) []client.Object {
 		&backupv1alpha1.BackupStorage{
 			ObjectMeta: metav1.ObjectMeta{Name: "s3", Namespace: "db"},
 			Spec: backupv1alpha1.BackupStorageSpec{
-				Type: backupv1alpha1.BackupStorageTypeS3,
-				S3: &backupv1alpha1.BackupStorageS3Spec{
-					Bucket:               "backups",
-					Region:               "us-east-1",
-					EndpointURL:          "http://minio.storage.svc:9000",
-					CredentialsSecretRef: commonv1alpha1.SecretRef{Name: "s3-creds"},
+				BackupStorageClassRef: commonv1alpha1.ObjectRef{Name: "s3"},
+				Location:              backupv1alpha1.BackupStorageLocation{ObjectStore: &backupv1alpha1.ObjectStoreLocation{Bucket: "backups"}},
+				Parameters:            &runtime.RawExtension{Raw: []byte(`{"region":"us-east-1","endpointURL":"http://minio.storage.svc:9000"}`)},
+				Authentication: commonv1alpha1.Authentication{
+					Mode:                 "AccessKey",
+					CredentialsSecretRef: &commonv1alpha1.SecretRef{Name: "s3-creds"},
 				},
+			},
+		},
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "s3-creds", Namespace: "db"},
+			Data: map[string][]byte{
+				"AWS_ACCESS_KEY_ID":     []byte("key"),
+				"AWS_SECRET_ACCESS_KEY": []byte("secret"),
 			},
 		},
 	}
@@ -186,31 +193,41 @@ minio:
 }
 
 func TestBackupStorageObjectStore(t *testing.T) {
-	storage := func(endpoint string, verifyTLS *bool) *backupv1alpha1.BackupStorage {
-		return &backupv1alpha1.BackupStorage{
-			ObjectMeta: metav1.ObjectMeta{Name: "s3"},
+	storage := func(endpoint string, insecureSkipVerify bool) *backupv1alpha1.BackupStorage {
+		bs := &backupv1alpha1.BackupStorage{
+			ObjectMeta: metav1.ObjectMeta{Name: "s3", Namespace: "db"},
 			Spec: backupv1alpha1.BackupStorageSpec{
-				Type: backupv1alpha1.BackupStorageTypeS3,
-				S3:   &backupv1alpha1.BackupStorageS3Spec{Bucket: "b", Region: "r", EndpointURL: endpoint, VerifyTLS: verifyTLS},
+				BackupStorageClassRef: commonv1alpha1.ObjectRef{Name: "s3"},
+				Location:              backupv1alpha1.BackupStorageLocation{ObjectStore: &backupv1alpha1.ObjectStoreLocation{Bucket: "bkt"}},
+				Parameters:            &runtime.RawExtension{Raw: []byte(`{"region":"r","endpointURL":"` + endpoint + `"}`)},
+				Authentication: commonv1alpha1.Authentication{
+					Mode:                 "AccessKey",
+					CredentialsSecretRef: &commonv1alpha1.SecretRef{Name: "s3-creds"},
+				},
 			},
 		}
+		if insecureSkipVerify {
+			bs.Spec.TLS = &commonv1alpha1.TLSConfig{InsecureSkipVerify: true}
+		}
+		return bs
 	}
+	c := newBackupContext(t, backupFixtures("2.6.15")...)
 
-	store, err := backupStorageObjectStore(storage("http://minio.storage.svc:9000", nil), "root")
+	store, err := backupStorageObjectStore(c, storage("http://minio.storage.svc:9000", false), "root")
 	require.NoError(t, err)
-	assert.Equal(t, backupObjectStore{Provider: "minio", Address: "minio.storage.svc", Port: 9000, Region: "r", Bucket: "b", RootPath: "root"}, store)
+	assert.Equal(t, backupObjectStore{Provider: "minio", Address: "minio.storage.svc", Port: 9000, Region: "r", Bucket: "bkt", RootPath: "root"}, store)
 
-	store, err = backupStorageObjectStore(storage("https://s3.eu-west-1.amazonaws.com", nil), "root")
+	store, err = backupStorageObjectStore(c, storage("https://s3.eu-west-1.amazonaws.com", false), "root")
 	require.NoError(t, err)
 	assert.Equal(t, "aws", store.Provider)
 	assert.Equal(t, 443, store.Port)
 	assert.True(t, store.UseSSL)
 
-	_, err = backupStorageObjectStore(storage("https://minio.example.com", ptr.To(false)), "root")
-	require.ErrorContains(t, err, "verifyTLS false is not supported")
+	_, err = backupStorageObjectStore(c, storage("https://minio.example.com", true), "root")
+	require.ErrorContains(t, err, "tls.insecureSkipVerify is not supported")
 
 	// Plain HTTP never verifies certificates, so the flag is irrelevant.
-	_, err = backupStorageObjectStore(storage("http://minio.example.com", ptr.To(false)), "root")
+	_, err = backupStorageObjectStore(c, storage("http://minio.example.com", true), "root")
 	require.NoError(t, err)
 }
 

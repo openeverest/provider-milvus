@@ -8,7 +8,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	backupv1alpha1 "github.com/openeverest/openeverest/v2/api/backup/v1alpha1"
@@ -21,17 +20,23 @@ import (
 	"github.com/openeverest/provider-milvus/internal/milvusapi"
 )
 
-func storageLocation(endpointURL string, verifyTLS *bool) *backupv1alpha1.BackupStorage {
-	return &backupv1alpha1.BackupStorage{
+func storageLocation(endpointURL string, insecureSkipVerify bool) *backupv1alpha1.BackupStorage {
+	bs := &backupv1alpha1.BackupStorage{
 		ObjectMeta: metav1.ObjectMeta{Name: "s3-prod", Namespace: "db"},
 		Spec: backupv1alpha1.BackupStorageSpec{
-			Type: backupv1alpha1.BackupStorageTypeS3,
-			S3: &backupv1alpha1.BackupStorageS3Spec{
-				Bucket: "vectors", Region: "eu-west-1", EndpointURL: endpointURL, VerifyTLS: verifyTLS,
-				CredentialsSecretRef: commonv1alpha1.SecretRef{Name: "s3-prod-keys"},
+			BackupStorageClassRef: commonv1alpha1.ObjectRef{Name: "s3"},
+			Location:              backupv1alpha1.BackupStorageLocation{ObjectStore: &backupv1alpha1.ObjectStoreLocation{Bucket: "vectors"}},
+			Parameters:            &runtime.RawExtension{Raw: []byte(`{"region":"eu-west-1","endpointURL":"` + endpointURL + `"}`)},
+			Authentication: commonv1alpha1.Authentication{
+				Mode:                 "AccessKey",
+				CredentialsSecretRef: &commonv1alpha1.SecretRef{Name: "s3-prod-keys"},
 			},
 		},
 	}
+	if insecureSkipVerify {
+		bs.Spec.TLS = &commonv1alpha1.TLSConfig{InsecureSkipVerify: true}
+	}
+	return bs
 }
 
 func storageLocationCredentials(accessKey string) *corev1.Secret {
@@ -57,7 +62,7 @@ func TestStorageLocation(t *testing.T) {
 				Type:       "cluster",
 				Parameters: topologyParams(t, cluster.ClusterTopologyParameters{Dependencies: &cluster.ClusterDependencies{Storage: &dependencies.Storage{BackupStorageName: "s3-prod"}}}),
 			},
-		}, storageLocation("https://s3.eu-west-1.amazonaws.com", nil), storageLocationCredentials("AKIA"))
+		}, storageLocation("https://s3.eu-west-1.amazonaws.com", false), storageLocationCredentials("AKIA"))
 		require.NoError(t, validateInstance(c))
 		require.NoError(t, New().Sync(c))
 
@@ -82,7 +87,7 @@ func TestStorageLocation(t *testing.T) {
 				Type:       "standalone",
 				Parameters: onStorageLocation(t, &dependencies.Storage{BackupStorageName: "s3-prod", RootPath: "tenant-a"}),
 			},
-		}, storageLocation("http://minio.storage.svc", nil), storageLocationCredentials("minio"))
+		}, storageLocation("http://minio.storage.svc", false), storageLocationCredentials("minio"))
 		spec, err := BuildMilvusSpec(c)
 		require.NoError(t, err)
 		assert.Equal(t, "minio.storage.svc:80", spec.Dep.Storage.Endpoint)
@@ -98,7 +103,7 @@ func TestStorageLocation(t *testing.T) {
 				Type:       "standalone",
 				Parameters: onStorageLocation(t, &dependencies.Storage{BackupStorageName: "s3-prod"}),
 			},
-		}, storageLocation("https://minio.example.com", nil), keys)
+		}, storageLocation("https://minio.example.com", false), keys)
 		require.NoError(t, New().Sync(c))
 		keys.Data["AWS_ACCESS_KEY_ID"] = []byte("new")
 		require.NoError(t, c.Client().Update(c.Context(), keys))
@@ -125,19 +130,19 @@ func TestValidateStorageLocation(t *testing.T) {
 		{
 			name:    "location without keys",
 			storage: &dependencies.Storage{BackupStorageName: "s3-prod"},
-			objects: []client.Object{storageLocation("https://minio.example.com", nil), storageLocationCredentials("")},
-			wantErr: "has no AWS_ACCESS_KEY_ID or AWS_SECRET_ACCESS_KEY",
+			objects: []client.Object{storageLocation("https://minio.example.com", false), storageLocationCredentials("")},
+			wantErr: "needs AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY",
 		},
 		{
 			name:    "TLS verification off",
 			storage: &dependencies.Storage{BackupStorageName: "s3-prod"},
-			objects: []client.Object{storageLocation("https://minio.example.com", ptr.To(false)), storageLocationCredentials("k")},
-			wantErr: "verifyTLS false is not supported",
+			objects: []client.Object{storageLocation("https://minio.example.com", true), storageLocationCredentials("k")},
+			wantErr: "tls.insecureSkipVerify is not supported",
 		},
 		{
 			name:    "mixed with raw external fields",
 			storage: &dependencies.Storage{BackupStorageName: "s3-prod", Endpoint: "minio:9000"},
-			objects: []client.Object{storageLocation("https://minio.example.com", nil), storageLocationCredentials("k")},
+			objects: []client.Object{storageLocation("https://minio.example.com", false), storageLocationCredentials("k")},
 			wantErr: "storage.backupStorageName takes the endpoint, bucket, region and credentials from the storage location",
 		},
 	}

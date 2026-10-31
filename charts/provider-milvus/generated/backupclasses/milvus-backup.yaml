@@ -5,6 +5,10 @@ kind: BackupClass
 metadata:
   name: milvus-backup
 spec:
+  backupStorageClasses:
+    - authModes:
+        - AccessKey
+      name: s3
   description: |
     Logical backups of Milvus collections taken with the upstream milvus-backup
     tool. Raw data and index definitions are copied to an S3-compatible

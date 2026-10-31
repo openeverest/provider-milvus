@@ -126,7 +126,7 @@ func secretEnv(name, secret, key string) corev1.EnvVar {
 
 // backupStorageEnv passes the BackupStorage keys to milvus-backup.
 func backupStorageEnv(bs *backupv1alpha1.BackupStorage) []corev1.EnvVar {
-	secret := bs.Spec.S3.CredentialsSecretRef.Name
+	secret := bs.Spec.Authentication.CredentialsSecretRef.Name
 	return []corev1.EnvVar{
 		secretEnv("BACKUP_STORAGE_AUTH_ACCESS_KEY_ID", secret, "AWS_ACCESS_KEY_ID"),
 		secretEnv("BACKUP_STORAGE_AUTH_SECRET_ACCESS_KEY", secret, "AWS_SECRET_ACCESS_KEY"),

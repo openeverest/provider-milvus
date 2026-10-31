@@ -11,6 +11,10 @@ description: |
   tool. Raw data and index definitions are copied to an S3-compatible
   BackupStorage, and indexes are rebuilt on restore. Point-in-time recovery is
   not supported.
+backupStorageClasses:
+    - name: s3
+      authModes:
+        - AccessKey
 executionMode: ProviderManaged
 parametersSchema:
     openAPIV3Schema: MilvusBackupParameters
