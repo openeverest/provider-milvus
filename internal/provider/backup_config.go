@@ -3,12 +3,12 @@ package provider
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/yaml"
 
 	backupv1alpha1 "github.com/openeverest/openeverest/v2/api/backup/v1alpha1"
+	"github.com/openeverest/openeverest/v2/pkg/backupstorageclasses"
 	"github.com/openeverest/openeverest/v2/provider-runtime/controller"
 
 	"github.com/openeverest/provider-milvus/internal/milvusapi"
@@ -111,22 +111,23 @@ func parseMilvusObjectStore(userYAML string) (backupObjectStore, error) {
 	return store, nil
 }
 
-// backupStorageObjectStore maps an S3 BackupStorage onto the milvus-backup
-// backup side, with backups of an instance kept under rootPath.
+// backupStorageObjectStore maps an s3 BackupStorage onto the milvus-backup
+// backup side, with backups kept under rootPath in the storage's bucket.
 func backupStorageObjectStore(c *controller.Context, bs *backupv1alpha1.BackupStorage, rootPath string) (backupObjectStore, error) {
 	s3, _, err := c.BackupStorageS3(bs)
 	if err != nil {
-		return backupObjectStore{}, fmt.Errorf("BackupStorage %q: %w", bs.Name, err)
+		return backupObjectStore{}, err
 	}
 	endpoint, err := s3.Endpoint()
 	if err != nil {
-		return backupObjectStore{}, fmt.Errorf("BackupStorage %q: %w", bs.Name, err)
+		return backupObjectStore{}, err
 	}
-	if endpoint.Secure && bs.Spec.TLS != nil && bs.Spec.TLS.InsecureSkipVerify {
-		return backupObjectStore{}, fmt.Errorf("BackupStorage %q: tls.insecureSkipVerify is not supported: Milvus and milvus-backup always verify TLS", bs.Name)
+	// milvus-backup verifies TLS against the system trust store only.
+	if _, err := c.BackupStorageTLS(bs, controller.TLSSupport{}); err != nil {
+		return backupObjectStore{}, err
 	}
 	provider := "minio"
-	if strings.HasSuffix(endpoint.Host, ".amazonaws.com") {
+	if s3.EffectiveImplementation() == backupstorageclasses.S3ImplementationAWS {
 		provider = "aws"
 	}
 	return backupObjectStore{

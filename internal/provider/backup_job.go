@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"sort"
 	"strings"
 
@@ -18,6 +19,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	backupv1alpha1 "github.com/openeverest/openeverest/v2/api/backup/v1alpha1"
+	corev1alpha1 "github.com/openeverest/openeverest/v2/api/core/v1alpha1"
+	"github.com/openeverest/openeverest/v2/pkg/backupstorageclasses"
 	"github.com/openeverest/openeverest/v2/provider-runtime/controller"
 )
 
@@ -62,12 +65,6 @@ func milvusBackupName(backupName string) string {
 	return strings.NewReplacer("-", "_", ".", "_").Replace(backupName)
 }
 
-// backupRootPath keeps every instance's backups apart inside a shared bucket
-// and is derivable from a Backup alone, so any instance can restore them.
-func backupRootPath(namespace, instance string) string {
-	return fmt.Sprintf("everest/milvus/%s/%s", namespace, instance)
-}
-
 // backupLocation is where a Backup's data lives in its BackupStorage.
 type backupLocation struct {
 	storage  *backupv1alpha1.BackupStorage
@@ -75,6 +72,9 @@ type backupLocation struct {
 	name     string
 }
 
+// resolveBackupLocation finds a Backup's data: an imported Backup names its
+// path under the storage's prefix, any other one is under the path its origin
+// Instance writes to.
 func resolveBackupLocation(c *controller.Context, backup *backupv1alpha1.Backup) (backupLocation, error) {
 	bs, err := c.BackupStorage(backup.Spec.StorageRef.Name)
 	if err != nil {
@@ -86,17 +86,28 @@ func resolveBackupLocation(c *controller.Context, backup *backupv1alpha1.Backup)
 		if backup.Spec.Origin.External == nil {
 			return backupLocation{}, fmt.Errorf("external Backup %q has no origin.external.path", backup.Name)
 		}
-		path := strings.Trim(backup.Spec.Origin.External.Path, "/")
-		cut := strings.LastIndex(path, "/")
+		key := strings.Trim(backup.Spec.Origin.External.Path, "/")
+		cut := strings.LastIndex(key, "/")
 		if cut <= 0 {
-			return backupLocation{}, fmt.Errorf("external Backup %q path %q must be <rootPath>/<backup name>", backup.Name, path)
+			return backupLocation{}, fmt.Errorf("external Backup %q path %q must be <rootPath>/<backup name>", backup.Name, key)
 		}
-		location.rootPath, location.name = path[:cut], path[cut+1:]
+		location.rootPath = path.Join(bs.Spec.Location.ObjectStore.Prefix, key[:cut])
+		location.name = key[cut+1:]
 	default:
 		if backup.Spec.Origin.InstanceRef == nil {
 			return backupLocation{}, fmt.Errorf("backup %q has no origin instance", backup.Name)
 		}
-		location.rootPath = backupRootPath(backup.Namespace, backup.Spec.Origin.InstanceRef.Name)
+		origin := c.Instance()
+		if name := backup.Spec.Origin.InstanceRef.Name; name != origin.Name {
+			origin = &corev1alpha1.Instance{}
+			if err := c.Get(origin, name); err != nil {
+				if apierrors.IsNotFound(err) {
+					return backupLocation{}, fmt.Errorf("the path of Backup %q is unknown: its origin Instance %q no longer exists", backup.Name, name)
+				}
+				return backupLocation{}, fmt.Errorf("get origin Instance %q: %w", name, err)
+			}
+		}
+		location.rootPath = backupstorageclasses.BackupPath(bs.Spec.Location, origin.Namespace, origin.Name, origin.UID, bs.Name)
 		location.name = milvusBackupName(backup.Name)
 	}
 	return location, nil
@@ -128,8 +139,8 @@ func secretEnv(name, secret, key string) corev1.EnvVar {
 func backupStorageEnv(bs *backupv1alpha1.BackupStorage) []corev1.EnvVar {
 	secret := bs.Spec.Authentication.CredentialsSecretRef.Name
 	return []corev1.EnvVar{
-		secretEnv("BACKUP_STORAGE_AUTH_ACCESS_KEY_ID", secret, "AWS_ACCESS_KEY_ID"),
-		secretEnv("BACKUP_STORAGE_AUTH_SECRET_ACCESS_KEY", secret, "AWS_SECRET_ACCESS_KEY"),
+		secretEnv("BACKUP_STORAGE_AUTH_ACCESS_KEY_ID", secret, backupstorageclasses.KeyAWSAccessKeyID),
+		secretEnv("BACKUP_STORAGE_AUTH_SECRET_ACCESS_KEY", secret, backupstorageclasses.KeyAWSSecretAccessKey),
 	}
 }
 

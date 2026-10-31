@@ -20,6 +20,7 @@ import (
 	backupv1alpha1 "github.com/openeverest/openeverest/v2/api/backup/v1alpha1"
 	commonv1alpha1 "github.com/openeverest/openeverest/v2/api/common/v1alpha1"
 	corev1alpha1 "github.com/openeverest/openeverest/v2/api/core/v1alpha1"
+	"github.com/openeverest/openeverest/v2/pkg/backupstorageclasses"
 	"github.com/openeverest/openeverest/v2/provider-runtime/controller"
 
 	milvusbackup "github.com/openeverest/provider-milvus/definition/backupclasses/milvus-backup"
@@ -95,6 +96,11 @@ func backupFixtures(version string) []client.Object {
 					CredentialsSecretRef: &commonv1alpha1.SecretRef{Name: "s3-creds"},
 				},
 			},
+			Status: backupv1alpha1.BackupStorageStatus{Conditions: []metav1.Condition{{
+				Type:   backupv1alpha1.BackupStorageConditionAccepted,
+				Status: metav1.ConditionTrue,
+				Reason: backupv1alpha1.ReasonAccepted,
+			}}},
 		},
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: "s3-creds", Namespace: "db"},
@@ -109,7 +115,7 @@ func backupFixtures(version string) []client.Object {
 func newBackupContext(t *testing.T, objs ...client.Object) *controller.Context {
 	t.Helper()
 	instance := &corev1alpha1.Instance{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-milvus", Namespace: "db"},
+		ObjectMeta: metav1.ObjectMeta{Name: "test-milvus", Namespace: "db", UID: "milvus-uid"},
 		Spec:       corev1alpha1.InstanceSpec{ProviderRef: commonv1alpha1.ObjectRef{Name: common.ProviderName}},
 	}
 	all := append([]client.Object{instance}, objs...)
@@ -193,42 +199,54 @@ minio:
 }
 
 func TestBackupStorageObjectStore(t *testing.T) {
-	storage := func(endpoint string, insecureSkipVerify bool) *backupv1alpha1.BackupStorage {
-		bs := &backupv1alpha1.BackupStorage{
+	storage := func(endpoint, implementation string, tls *commonv1alpha1.TLSConfig) *backupv1alpha1.BackupStorage {
+		params := map[string]string{"region": "r", "endpointURL": endpoint}
+		if implementation != "" {
+			params["implementation"] = implementation
+		}
+		raw, err := json.Marshal(params)
+		require.NoError(t, err)
+		return &backupv1alpha1.BackupStorage{
 			ObjectMeta: metav1.ObjectMeta{Name: "s3", Namespace: "db"},
 			Spec: backupv1alpha1.BackupStorageSpec{
 				BackupStorageClassRef: commonv1alpha1.ObjectRef{Name: "s3"},
-				Location:              backupv1alpha1.BackupStorageLocation{ObjectStore: &backupv1alpha1.ObjectStoreLocation{Bucket: "bkt"}},
-				Parameters:            &runtime.RawExtension{Raw: []byte(`{"region":"r","endpointURL":"` + endpoint + `"}`)},
+				Location:              backupv1alpha1.BackupStorageLocation{ObjectStore: &backupv1alpha1.ObjectStoreLocation{Bucket: "bkt", Prefix: "team"}},
+				Parameters:            &runtime.RawExtension{Raw: raw},
 				Authentication: commonv1alpha1.Authentication{
 					Mode:                 "AccessKey",
 					CredentialsSecretRef: &commonv1alpha1.SecretRef{Name: "s3-creds"},
 				},
+				TLS: tls,
 			},
 		}
-		if insecureSkipVerify {
-			bs.Spec.TLS = &commonv1alpha1.TLSConfig{InsecureSkipVerify: true}
-		}
-		return bs
 	}
 	c := newBackupContext(t, backupFixtures("2.6.15")...)
 
-	store, err := backupStorageObjectStore(c, storage("http://minio.storage.svc:9000", false), "root")
+	store, err := backupStorageObjectStore(c, storage("http://minio.storage.svc:9000", "minio", nil), "root")
 	require.NoError(t, err)
 	assert.Equal(t, backupObjectStore{Provider: "minio", Address: "minio.storage.svc", Port: 9000, Region: "r", Bucket: "bkt", RootPath: "root"}, store)
 
-	store, err = backupStorageObjectStore(c, storage("https://s3.eu-west-1.amazonaws.com", false), "root")
+	store, err = backupStorageObjectStore(c, storage("https://s3.eu-west-1.amazonaws.com", "", nil), "root")
 	require.NoError(t, err)
-	assert.Equal(t, "aws", store.Provider)
+	assert.Equal(t, "aws", store.Provider, "an unset implementation is Amazon S3")
 	assert.Equal(t, 443, store.Port)
 	assert.True(t, store.UseSSL)
 
-	_, err = backupStorageObjectStore(c, storage("https://minio.example.com", true), "root")
-	require.ErrorContains(t, err, "tls.insecureSkipVerify is not supported")
-
-	// Plain HTTP never verifies certificates, so the flag is irrelevant.
-	_, err = backupStorageObjectStore(c, storage("http://minio.example.com", true), "root")
+	store, err = backupStorageObjectStore(c, storage("https://rgw.example.com", "ceph", nil), "root")
 	require.NoError(t, err)
+	assert.Equal(t, "minio", store.Provider, "S3-compatible gateways use the generic client")
+
+	_, err = backupStorageObjectStore(c, storage("https://minio.example.com", "minio", &commonv1alpha1.TLSConfig{InsecureSkipVerify: true}), "root")
+	require.ErrorIs(t, err, controller.ErrTLSOptionUnsupported)
+
+	ca := &commonv1alpha1.TLSConfig{CA: &commonv1alpha1.CABundleSource{SecretKeyRef: &commonv1alpha1.SecretKeyRef{Name: "ca", Key: "ca.crt"}}}
+	_, err = backupStorageObjectStore(c, storage("https://minio.example.com", "minio", ca), "root")
+	require.ErrorIs(t, err, controller.ErrTLSOptionUnsupported)
+
+	badParams := storage("https://minio.example.com", "minio", nil)
+	badParams.Spec.Parameters.Raw = []byte(`{"region":"r","endpointURL":"https://minio.example.com","useAccelerate":true}`)
+	_, err = backupStorageObjectStore(c, badParams, "root")
+	require.ErrorIs(t, err, backupstorageclasses.ErrUnsupportedParameter)
 }
 
 func TestBackupNames(t *testing.T) {
@@ -243,12 +261,24 @@ func TestBackupNames(t *testing.T) {
 }
 
 func TestResolveBackupLocation(t *testing.T) {
-	c := newBackupContext(t, backupFixtures("2.6.15")...)
+	objs := backupFixtures("2.6.15")
+	storage, ok := objs[2].(*backupv1alpha1.BackupStorage)
+	require.True(t, ok)
+	storage.Spec.Location.ObjectStore.Prefix = "team"
+	other := &corev1alpha1.Instance{ObjectMeta: metav1.ObjectMeta{Name: "other", Namespace: "db", UID: "other-uid"}}
+	c := newBackupContext(t, append(objs, other)...)
 
 	location, err := resolveBackupLocation(c, newBackup("daily-1", nil))
 	require.NoError(t, err)
-	assert.Equal(t, "everest/milvus/db/test-milvus", location.rootPath)
+	assert.Equal(t, "team/backups/db/test-milvus/milvus-uid/s3", location.rootPath)
 	assert.Equal(t, "daily_1", location.name)
+
+	location, err = resolveBackupLocation(c, succeededBackup("daily-1", "other"))
+	require.NoError(t, err)
+	assert.Equal(t, "team/backups/db/other/other-uid/s3", location.rootPath, "the origin Instance's path")
+
+	_, err = resolveBackupLocation(c, succeededBackup("daily-1", "gone"))
+	require.ErrorContains(t, err, `its origin Instance "gone" no longer exists`)
 
 	external := newBackup("imported", nil)
 	external.Spec.Origin = backupv1alpha1.BackupOrigin{
@@ -257,7 +287,7 @@ func TestResolveBackupLocation(t *testing.T) {
 	}
 	location, err = resolveBackupLocation(c, external)
 	require.NoError(t, err)
-	assert.Equal(t, "old/prefix", location.rootPath)
+	assert.Equal(t, "team/old/prefix", location.rootPath, "relative to the storage's prefix")
 	assert.Equal(t, "backup_7", location.name)
 }
 
@@ -285,7 +315,7 @@ func TestSyncBackup(t *testing.T) {
 		require.NoError(t, c.Get(cm, "daily-1-mb"))
 		config := cm.Data["backup.yaml"]
 		assert.Contains(t, config, "bucketName: test-milvus")
-		assert.Contains(t, config, "rootPath: everest/milvus/db/test-milvus")
+		assert.Contains(t, config, "rootPath: backups/db/test-milvus/milvus-uid/s3")
 		assert.Contains(t, config, "address: test-milvus-milvus.db.svc")
 		assert.NotContains(t, config, "ignored", "credentials stay out of the ConfigMap")
 	})
@@ -387,7 +417,8 @@ func succeededBackup(name, origin string) *backupv1alpha1.Backup {
 
 func TestSyncRestore(t *testing.T) {
 	t.Run("replaces collections from another instance's backup and rebuilds indexes", func(t *testing.T) {
-		c := newBackupContext(t, append(backupFixtures("2.6.15"), succeededBackup("daily-1", "other"))...)
+		other := &corev1alpha1.Instance{ObjectMeta: metav1.ObjectMeta{Name: "other", Namespace: "db", UID: "other-uid"}}
+		c := newBackupContext(t, append(backupFixtures("2.6.15"), other, succeededBackup("daily-1", "other"))...)
 
 		status, err := New().SyncRestore(c, newRestore(nil))
 		require.NoError(t, err)
@@ -398,8 +429,17 @@ func TestSyncRestore(t *testing.T) {
 			job.Spec.Template.Spec.Containers[0].Args)
 		cm := &corev1.ConfigMap{}
 		require.NoError(t, c.Get(cm, "restore-1-mr"))
-		assert.Contains(t, cm.Data["backup.yaml"], "rootPath: everest/milvus/db/other", "data is read from the source instance's path")
+		assert.Contains(t, cm.Data["backup.yaml"], "rootPath: backups/db/other/other-uid/s3", "data is read from the source instance's path")
 		assert.Contains(t, cm.Data["backup.yaml"], "bucketName: test-milvus", "and written into the target's bucket")
+	})
+
+	t.Run("fails when the backup's origin instance is gone", func(t *testing.T) {
+		c := newBackupContext(t, append(backupFixtures("2.6.15"), succeededBackup("daily-1", "gone"))...)
+
+		status, err := New().SyncRestore(c, newRestore(nil))
+		require.NoError(t, err)
+		assert.Equal(t, backupv1alpha1.RestoreStateFailed, status.State)
+		assert.Contains(t, status.Message, `its origin Instance "gone" no longer exists`)
 	})
 
 	t.Run("can keep existing collections and restore next to them", func(t *testing.T) {
