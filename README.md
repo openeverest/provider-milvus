@@ -383,9 +383,9 @@ Backups use the `milvus-backup` BackupClass. For each Backup, Restore or
 deletion the provider runs the upstream milvus-backup CLI as a Job in the
 instance's namespace (`<backup>-mb`, `<restore>-mr`, `<backup>-md`); its log is
 the place to look when one fails. Backups copy the collections' data and index
-definitions to the BackupStorage under
-`everest/milvus/<namespace>/<instance>/<backup>`, and restores rebuild the
-indexes.
+definitions into the BackupStorage's bucket under the instance's backup path,
+`<prefix>/backups/<namespace>/<instance>/<instance-uid>/<storage>`, and
+restores rebuild the indexes.
 
 ```yaml
 apiVersion: backup.openeverest.io/v1alpha1
@@ -431,8 +431,10 @@ spec:
   itself, but not with the others.
 - Only one backup, restore or deletion runs per instance at a time; the others
   wait in `Pending`.
-- milvus-backup cannot skip TLS verification, so BackupStorages with
-  `verifyTLS: false` on an `https` endpoint are rejected.
+- A restore from another instance's backup needs that instance to still
+  exist: its UID is part of the backup path.
+- milvus-backup verifies TLS against the system trust store only, so
+  BackupStorages that set `tls.insecureSkipVerify` or `tls.ca` are rejected.
 
 #### Scheduled backups
 
