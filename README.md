@@ -78,7 +78,7 @@ Stateful workloads additionally report:
 
 | Capability | Status | Notes |
 |---|---|---|
-| Persistent storage | ✅ | Bundled object storage (MinIO) sized via `topology.parameters.dependencies.storage.persistence.size`, or an OpenEverest storage location via `storage.backupStorageName`; Milvus components are stateless and take no `storage` |
+| Persistent storage | ✅ | Bundled object storage (MinIO) sized via `topology.parameters.dependencies.storage.persistence.size`, or external object storage via `storage.external`; Milvus components are stateless and take no `storage` |
 | Storage expansion | ❌ | |
 | Backups (on demand) | ✅ | `milvus-backup` BackupClass; runs the upstream [milvus-backup](https://github.com/zilliztech/milvus-backup) tool into an S3-compatible BackupStorage |
 | Backups (scheduled) | ✅ | Cron schedules in `spec.backup`, run as CronJobs, with count- or time-based retention |
@@ -296,28 +296,8 @@ rejected; release the collection, or reload it with fewer replicas, first.
 
 ### Bring your own etcd and object storage
 
-The simplest way to keep Milvus data outside the cluster is an OpenEverest
-storage location (Settings → Storage locations, a `BackupStorage` of type
-`s3`) in the instance's namespace. The provider takes its endpoint, bucket,
-region and keys, and keeps the data under `rootPath` (default
-`milvus/<namespace>/<instance>`), apart from backups in the same bucket. In the
-UI, enter the location's name in **Object storage → Storage location**:
-
-```yaml
-spec:
-  topology:
-    parameters:
-      dependencies:
-        storage:
-          backupStorageName: s3-prod
-```
-
-The keys are copied into the `<instance>-object-storage` Secret on every
-reconcile; Milvus picks up rotated keys when its pods restart. Storage
-locations with `verifyTLS: false` are rejected: Milvus always verifies TLS.
-
-For anything a storage location can't express (cloud identity, Azure, a
-provider-specific client), point Milvus at existing services directly. With
+To keep Milvus data outside the cluster, point Milvus at existing services
+directly. With
 `useIAM` the pods authenticate through the ServiceAccount's cloud identity
 (e.g. EKS IRSA); otherwise `credentialsSecret` names a Secret with the keys
 `accesskey` and `secretkey`. `rootPath` lets several instances share one etcd

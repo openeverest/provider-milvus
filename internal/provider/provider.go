@@ -290,10 +290,7 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 		engineConfig = withActiveStandbyDefaults(engineConfig)
 	}
 	spec.Conf = engineConfig
-	storageParam, err := resolveStorageLocation(c, storageDependencyParam(c, topologyType))
-	if err != nil {
-		return milvusapi.MilvusSpec{}, err
-	}
+	storageParam := storageDependencyParam(c, topologyType)
 	for _, dependencyConfig := range []milvusapi.Values{
 		externalStorageConfig(storageParam),
 		externalEtcdConfig(etcdDependencyParam(c, topologyType)),
@@ -370,13 +367,6 @@ func (p *Provider) Sync(c *controller.Context) error {
 	}
 	applyAuthConfig(&spec, credentialsSecretName(c.Name()))
 	if err := applyStorageCredentials(c, &spec); err != nil {
-		return err
-	}
-	topologyType := "standalone"
-	if spec.Mode == milvusapi.MilvusModeCluster {
-		topologyType = "cluster"
-	}
-	if err := syncStorageLocationSecret(c, storageDependencyParam(c, topologyType)); err != nil {
 		return err
 	}
 	if err := clearDroppedAutoscaling(c, spec); err != nil {
