@@ -2,15 +2,13 @@ package provider
 
 import (
 	"fmt"
-	"net"
-	"net/url"
 	"strconv"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/yaml"
 
 	backupv1alpha1 "github.com/openeverest/openeverest/v2/api/backup/v1alpha1"
+	"github.com/openeverest/openeverest/v2/pkg/backupstorageclasses"
 	"github.com/openeverest/openeverest/v2/provider-runtime/controller"
 
 	"github.com/openeverest/provider-milvus/internal/milvusapi"
@@ -113,43 +111,32 @@ func parseMilvusObjectStore(userYAML string) (backupObjectStore, error) {
 	return store, nil
 }
 
-// backupStorageObjectStore maps an S3 BackupStorage onto the milvus-backup
-// backup side, with backups of an instance kept under rootPath.
-func backupStorageObjectStore(bs *backupv1alpha1.BackupStorage, rootPath string) (backupObjectStore, error) {
-	if bs.Spec.Type != backupv1alpha1.BackupStorageTypeS3 || bs.Spec.S3 == nil {
-		return backupObjectStore{}, fmt.Errorf("BackupStorage %q: only s3 storage is supported", bs.Name)
-	}
-	s3 := bs.Spec.S3
-	endpoint, err := url.Parse(s3.EndpointURL)
-	if err != nil || endpoint.Host == "" {
-		return backupObjectStore{}, fmt.Errorf("BackupStorage %q: invalid endpointURL %q", bs.Name, s3.EndpointURL)
-	}
-	useSSL := endpoint.Scheme == "https"
-	if useSSL && s3.VerifyTLS != nil && !*s3.VerifyTLS {
-		return backupObjectStore{}, fmt.Errorf("BackupStorage %q: verifyTLS false is not supported: Milvus and milvus-backup always verify TLS", bs.Name)
-	}
-	host, portText, err := net.SplitHostPort(endpoint.Host)
+// backupStorageObjectStore maps an s3 BackupStorage onto the milvus-backup
+// backup side, with backups kept under rootPath in the storage's bucket.
+func backupStorageObjectStore(c *controller.Context, bs *backupv1alpha1.BackupStorage, rootPath string) (backupObjectStore, error) {
+	s3, _, err := c.BackupStorageS3(bs)
 	if err != nil {
-		host, portText = endpoint.Host, "80"
-		if useSSL {
-			portText = "443"
-		}
+		return backupObjectStore{}, err
 	}
-	port, err := strconv.Atoi(portText)
+	endpoint, err := s3.Endpoint()
 	if err != nil {
-		return backupObjectStore{}, fmt.Errorf("BackupStorage %q: invalid endpoint port %q", bs.Name, portText)
+		return backupObjectStore{}, err
+	}
+	// milvus-backup verifies TLS against the system trust store only.
+	if _, err := c.BackupStorageTLS(bs, controller.TLSSupport{}); err != nil {
+		return backupObjectStore{}, err
 	}
 	provider := "minio"
-	if strings.HasSuffix(host, ".amazonaws.com") {
+	if s3.EffectiveImplementation() == backupstorageclasses.S3ImplementationAWS {
 		provider = "aws"
 	}
 	return backupObjectStore{
 		Provider: provider,
-		Address:  host,
-		Port:     port,
-		UseSSL:   useSSL,
+		Address:  endpoint.Host,
+		Port:     endpoint.Port,
+		UseSSL:   endpoint.Secure,
 		Region:   s3.Region,
-		Bucket:   s3.Bucket,
+		Bucket:   bs.Spec.Location.ObjectStore.Bucket,
 		RootPath: rootPath,
 	}, nil
 }

@@ -3304,8 +3304,6 @@ spec:
                   type: object
                 storage:
                   properties:
-                    backupStorageName:
-                      type: string
                     bucket:
                       type: string
                     cloudProvider:
@@ -3427,8 +3425,6 @@ spec:
                   type: object
                 storage:
                   properties:
-                    backupStorageName:
-                      type: string
                     bucket:
                       type: string
                     cloudProvider:
@@ -3518,7 +3514,7 @@ spec:
                 policy:
                   uiType: widget
                   widgetType: podSchedulingPolicy
-              groupType: toggleable
+              groupType: bordered
               label: Pod scheduling policy
               uiType: group
             storageClass:
@@ -3545,6 +3541,7 @@ spec:
                 label: Milvus Version
                 optionsPath: spec.versions
                 optionsPathConfig:
+                  defaultValuePath: spec.defaultVersion
                   labelPath: name
                   valuePath: name
               path: spec.version
@@ -4014,21 +4011,10 @@ spec:
                     min: 1
               groupType: line
               uiType: group
-            storageLocation:
-              fieldParams:
-                helperText: Name of an S3 storage location in this namespace. Leave empty to use the bundled MinIO sized below.
-                label: Storage location
-                modes:
-                  edit:
-                    disabled: true
-                    helperText: The object storage cannot be changed after creation
-              path: spec.topology.parameters.dependencies.storage.backupStorageName
-              uiType: text
           componentsOrder:
-            - storageLocation
             - replicas
             - resources
-          description: Keep Milvus data in the bundled MinIO, or in an S3 storage location from Settings.
+          description: Configure the bundled MinIO object storage.
           label: Object storage
         proxy:
           components:
@@ -4257,7 +4243,7 @@ spec:
                 policy:
                   uiType: widget
                   widgetType: podSchedulingPolicy
-              groupType: toggleable
+              groupType: bordered
               label: Pod scheduling policy
               uiType: group
             storageClass:
@@ -4284,6 +4270,7 @@ spec:
                 label: Milvus Version
                 optionsPath: spec.versions
                 optionsPathConfig:
+                  defaultValuePath: spec.defaultVersion
                   labelPath: name
                   valuePath: name
               path: spec.version
@@ -4399,21 +4386,10 @@ spec:
                     min: 1
               groupType: line
               uiType: group
-            storageLocation:
-              fieldParams:
-                helperText: Name of an S3 storage location in this namespace. Leave empty to use the bundled MinIO sized below.
-                label: Storage location
-                modes:
-                  edit:
-                    disabled: true
-                    helperText: The object storage cannot be changed after creation
-              path: spec.topology.parameters.dependencies.storage.backupStorageName
-              uiType: text
           componentsOrder:
-            - storageLocation
             - replicas
             - resources
-          description: Keep Milvus data in the bundled MinIO, or in an S3 storage location from Settings.
+          description: Configure the bundled MinIO object storage.
           label: Object storage
         resources:
           components:

@@ -304,7 +304,7 @@ func validateStorageNotDecreased(c *controller.Context, topologyType string) err
 // the default. External storage has no bundled PVC.
 func requestedStorageSize(c *controller.Context, topologyType string) string {
 	storageParam := storageDependencyParam(c, topologyType)
-	if storageParam != nil && (storageParam.External || storageParam.BackupStorageName != "") {
+	if storageParam != nil && storageParam.External {
 		return ""
 	}
 	if storageParam != nil && storageParam.Persistence != nil && storageParam.Persistence.Size != "" {
@@ -486,17 +486,7 @@ func validateDependencies(c *controller.Context, topologyType string) error {
 	if err := validatePulsarDependency(pulsar); err != nil {
 		return err
 	}
-	if err := validateStorageDependency(storage); err != nil {
-		return err
-	}
-	if storage == nil || storage.BackupStorageName == "" {
-		return nil
-	}
-	if _, err := resolveStorageLocation(c, storage); err != nil {
-		return err
-	}
-	_, _, err := storageLocationKeys(c, storage.BackupStorageName)
-	return err
+	return validateStorageDependency(storage)
 }
 
 // validateMessageStream accepts the supported write-ahead logs and rejects
@@ -607,14 +597,6 @@ func validatePulsarComponent(name string, component *dependencies.PulsarComponen
 
 func validateStorageDependency(storage *dependencies.Storage) error {
 	if storage == nil {
-		return nil
-	}
-	if storage.BackupStorageName != "" {
-		if storage.External || storage.Endpoint != "" || storage.Type != "" || storage.CredentialsSecret != "" ||
-			storage.UseIAM || storage.Region != "" || storage.Bucket != "" || storage.UseSSL {
-			return fmt.Errorf("storage.backupStorageName takes the endpoint, bucket, region and credentials from the storage location; " +
-				"remove storage.external, endpoint, type, credentialsSecret, useIAM, region, bucket and useSSL")
-		}
 		return nil
 	}
 	if storage.External {

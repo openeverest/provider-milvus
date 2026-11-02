@@ -24,7 +24,7 @@ concurrency:
 
 env:
   IMG: provider-milvus:ci
-  OPENEVEREST_BRANCH: main
+  OPENEVEREST_BRANCH: backup/storage-reshape
 
 jobs:
   e2e:
