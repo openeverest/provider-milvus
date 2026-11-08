@@ -1,6 +1,13 @@
 # milvus-backup BackupClass definition.
 # This file is the source of truth for the generated BackupClass manifest.
 #
+# provider-sdk generate makes the class ProviderManaged and names this
+# provider in providerManaged.providerRef: the provider claims and executes it.
+#
+# backupStorageClasses lists the BackupStorageClasses the engine writes to,
+# with their auth modes, the parameters it supports (parametersSchema narrows
+# the storage class's schema) and the spec.tls settings it honours (tls).
+#
 # Co-located files:
 #   ui.yaml  — UI rendering hints, inlined verbatim under spec.uiSchema.
 #   types.go — Go types referenced below; OpenAPI-extracted by provider-sdk generate.
@@ -15,12 +22,13 @@ backupStorageClasses:
     - name: s3
       authModes:
         - AccessKey
-executionMode: ProviderManaged
+      tls:
+        # milvus-backup verifies TLS against the system trust store only.
+        customCA: None
+        insecureSkipVerify: None
 parametersSchema:
     openAPIV3Schema: MilvusBackupParameters
 providerManaged:
     supportsPITR: false
 restoreParametersSchema:
     openAPIV3Schema: MilvusRestoreParameters
-supportedProviders:
-    - milvus

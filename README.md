@@ -49,6 +49,7 @@ manages pods directly — all lifecycle work is delegated to the operator.
 
 | provider-milvus | OpenEverest | Operator | Kubernetes |
 |---|---|---|---|
+| `0.5.x` | `2.0.0-dev.5` | `1.3.11` | `1.30` – `1.36` |
 | `0.4.x` | `>= 2.0.0` | `1.3.11` | `1.30` – `1.36` |
 | `0.3.x` | `>= 2.0.0` | `1.3.11` | `1.30` – `1.34` |
 | `0.2.x` | `>= 2.0.0` | `1.3.9` | `1.30` – `1.34` |

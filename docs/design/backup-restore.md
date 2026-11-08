@@ -52,7 +52,7 @@ These come from `openeverest/api` and `provider-runtime`:
 | `BackupProvider` = `SyncBackup` / `SyncRestore` / `CleanupBackup` / `CleanupRestore`; optional `BackupWatcher`, `RestoreWatcher`, `BackupMirror`, `BackupImporter` | `provider-runtime/controller/interface.go` | Interfaces we implement. |
 | Instance deletion with `deletionPolicy: Cascade` deletes child Backups/Restores **before** `Cleanup` | `reconciler/provider.go` `handleDeletion` | `CleanupBackup` can still read the Instance and Milvus CR. |
 | Seeding requires the target Instance to list the source Backup's storage in `spec.backup.storages` | `ReconcileDataSource` step 3 | Documented user requirement, same as PSMDB. |
-| `BackupStorage` of the `s3` class: `location` (bucket, prefix), `parameters` (region, endpointURL, forcePathStyle, implementation), `tls`, `AccessKey` Secret with `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | `backupstorage_types.go`, `backupstorageclasses` | Mapping in section 7.3. |
+| `BackupStorage` of the `s3` class: `location` (bucket, prefix), `parameters` (region, endpointURL, forcePathStyle, implementation), `tls`, `AccessKey` Secret with `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | `backupstorage_types.go`, `backupstorageclasses/s3` | Mapping in section 7.3. |
 
 Job execution mode was rejected for three reasons. It is unusable for
 `Instance.spec.backup` and `spec.dataSource`. Its payload (`jobspec.Spec`)
@@ -158,9 +158,13 @@ description: |
   Logical backups of Milvus collections with milvus-backup. Raw data and index
   metadata are copied to an S3-compatible BackupStorage; indexes are rebuilt
   on restore. Point-in-time recovery is not supported.
-supportedProviders:
-  - milvus
-executionMode: ProviderManaged
+backupStorageClasses:
+  - name: s3
+    authModes:
+      - AccessKey
+    tls:
+      customCA: None
+      insecureSkipVerify: None
 parametersSchema:
   openAPIV3Schema: MilvusBackupParameters
 restoreParametersSchema:
@@ -168,6 +172,9 @@ restoreParametersSchema:
 providerManaged:
   supportsPITR: false
 ```
+
+`provider-sdk generate` makes the class `ProviderManaged` and names the
+provider in `providerManaged.providerRef`.
 
 `types.go`. Every field is optional and the defaults are listed:
 
@@ -278,7 +285,7 @@ Job's namespace, so `secretKeyRef` works without copying the Secret.
   fails the second one with a clear message.
 - **rootPath** = the runtime's backup path of the origin Instance and the
   storage, `<prefix>/backups/<namespace>/<instance>/<instance-uid>/<storage>`
-  (`backupstorageclasses.BackupPath`; `ResolvedBackupStorage.Path` for schedules).
+  (`backupv1alpha1.BackupPath`; `ResolvedBackupStorage.Path` for schedules).
   Scheduled and on-demand backups share it. A restore into *another* Instance
   reads the origin Instance's UID, so that Instance must still exist.
 - **External / imported backups** use `spec.origin.external.path` =

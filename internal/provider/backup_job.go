@@ -20,7 +20,7 @@ import (
 
 	backupv1alpha1 "github.com/openeverest/openeverest/v2/api/backup/v1alpha1"
 	corev1alpha1 "github.com/openeverest/openeverest/v2/api/core/v1alpha1"
-	"github.com/openeverest/openeverest/v2/pkg/backupstorageclasses"
+	"github.com/openeverest/openeverest/v2/backupstorageclasses/s3"
 	"github.com/openeverest/openeverest/v2/provider-runtime/controller"
 )
 
@@ -107,7 +107,7 @@ func resolveBackupLocation(c *controller.Context, backup *backupv1alpha1.Backup)
 				return backupLocation{}, fmt.Errorf("get origin Instance %q: %w", name, err)
 			}
 		}
-		location.rootPath = backupstorageclasses.BackupPath(bs.Spec.Location, origin.Namespace, origin.Name, origin.UID, bs.Name)
+		location.rootPath = backupv1alpha1.BackupPath(bs.Spec.Location, origin.Namespace, origin.Name, origin.UID, bs.Name)
 		location.name = milvusBackupName(backup.Name)
 	}
 	return location, nil
@@ -139,8 +139,8 @@ func secretEnv(name, secret, key string) corev1.EnvVar {
 func backupStorageEnv(bs *backupv1alpha1.BackupStorage) []corev1.EnvVar {
 	secret := bs.Spec.Authentication.CredentialsSecretRef.Name
 	return []corev1.EnvVar{
-		secretEnv("BACKUP_STORAGE_AUTH_ACCESS_KEY_ID", secret, backupstorageclasses.KeyAWSAccessKeyID),
-		secretEnv("BACKUP_STORAGE_AUTH_SECRET_ACCESS_KEY", secret, backupstorageclasses.KeyAWSSecretAccessKey),
+		secretEnv("BACKUP_STORAGE_AUTH_ACCESS_KEY_ID", secret, s3.KeyAWSAccessKeyID),
+		secretEnv("BACKUP_STORAGE_AUTH_SECRET_ACCESS_KEY", secret, s3.KeyAWSSecretAccessKey),
 	}
 }
 
