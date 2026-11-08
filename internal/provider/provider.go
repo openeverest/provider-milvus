@@ -19,6 +19,7 @@ import (
 	backupv1alpha1 "github.com/openeverest/openeverest/v2/api/backup/v1alpha1"
 	corev1alpha1 "github.com/openeverest/openeverest/v2/api/core/v1alpha1"
 	"github.com/openeverest/openeverest/v2/provider-runtime/controller"
+	"github.com/openeverest/provider-milvus/definition/backupclasses"
 	"github.com/openeverest/provider-milvus/definition/components"
 	"github.com/openeverest/provider-milvus/internal/common"
 	"github.com/openeverest/provider-milvus/internal/milvusapi"
@@ -39,7 +40,7 @@ type Provider struct {
 
 // New creates a new Provider instance.
 func New() *Provider {
-	return &Provider{
+	p := &Provider{
 		BaseProvider: controller.BaseProvider{
 			ProviderName: common.ProviderName,
 			SchemeFuncs: []func(*runtime.Scheme) error{
@@ -70,6 +71,9 @@ func New() *Provider {
 		rootPassword:   newMilvusRESTClient(),
 		loadedReplicas: newMilvusRESTClient(),
 	}
+	p.SetShippedBackupClasses(backupclasses.Shipped())
+
+	return p
 }
 
 func normalizeTopologyName(t string) string {

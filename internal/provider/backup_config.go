@@ -11,12 +11,17 @@ import (
 	s3class "github.com/openeverest/openeverest/v2/backupstorageclasses/s3"
 	"github.com/openeverest/openeverest/v2/provider-runtime/controller"
 
+	"github.com/openeverest/provider-milvus/definition/backupclasses"
 	"github.com/openeverest/provider-milvus/internal/milvusapi"
 )
 
 // milvusConfigKey is where the operator renders the Milvus config overrides
 // in the ConfigMap named after the instance.
 const milvusConfigKey = "user.yaml"
+
+// backupClassName is the BackupClass the provider ships, defined in
+// definition/backupclasses.
+const backupClassName = "milvus-backup"
 
 // Milvus defaults for object-storage keys the operator does not render.
 const (
@@ -123,7 +128,7 @@ func backupStorageObjectStore(c *controller.Context, bs *backupv1alpha1.BackupSt
 		return backupObjectStore{}, err
 	}
 	// milvus-backup verifies TLS against the system trust store only.
-	if _, err := c.BackupStorageTLS(bs, controller.TLSSupport{}); err != nil {
+	if _, err := c.BackupStorageTLS(bs, backupclasses.TLSSupport(backupClassName, s3class.ClassName)); err != nil {
 		return backupObjectStore{}, err
 	}
 	provider := "minio"
