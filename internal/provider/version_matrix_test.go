@@ -49,7 +49,9 @@ func TestShippedVersionsDeploy(t *testing.T) {
 		for topology := range spec.Topologies {
 			t.Run(bundle.Name+"/"+topology, func(t *testing.T) {
 				instance := instanceAtVersion(spec, topology, bundle.Name)
-				require.NoError(t, New().Validate(newTestContextWithProviderSpec(t, spec, instance)))
+				errs, err := New().ValidateReferences(newTestContextWithProviderSpec(t, spec, instance))
+				require.NoError(t, err)
+				require.Empty(t, errs)
 
 				milvus, err := BuildMilvusSpec(newTestContextWithProviderSpec(t, spec, instance))
 				require.NoError(t, err)

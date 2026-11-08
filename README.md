@@ -49,6 +49,7 @@ manages pods directly — all lifecycle work is delegated to the operator.
 
 | provider-milvus | OpenEverest | Operator | Kubernetes |
 |---|---|---|---|
+| `0.5.x` | `2.0.0-dev.5` | `1.3.11` | `1.30` – `1.36` |
 | `0.4.x` | `>= 2.0.0` | `1.3.11` | `1.30` – `1.36` |
 | `0.3.x` | `>= 2.0.0` | `1.3.11` | `1.30` – `1.34` |
 | `0.2.x` | `>= 2.0.0` | `1.3.9` | `1.30` – `1.34` |
@@ -78,7 +79,7 @@ Stateful workloads additionally report:
 
 | Capability | Status | Notes |
 |---|---|---|
-| Persistent storage | ✅ | Bundled object storage (MinIO) sized via `topology.parameters.dependencies.storage.persistence.size`, or an OpenEverest storage location via `storage.backupStorageName`; Milvus components are stateless and take no `storage` |
+| Persistent storage | ✅ | Bundled object storage (MinIO) sized via `topology.parameters.dependencies.storage.persistence.size`, or external object storage via `storage.external`; Milvus components are stateless and take no `storage` |
 | Storage expansion | ❌ | |
 | Backups (on demand) | ✅ | `milvus-backup` BackupClass; runs the upstream [milvus-backup](https://github.com/zilliztech/milvus-backup) tool into an S3-compatible BackupStorage |
 | Backups (scheduled) | ✅ | Cron schedules in `spec.backup`, run as CronJobs, with count- or time-based retention |
@@ -296,28 +297,8 @@ rejected; release the collection, or reload it with fewer replicas, first.
 
 ### Bring your own etcd and object storage
 
-The simplest way to keep Milvus data outside the cluster is an OpenEverest
-storage location (Settings → Storage locations, a `BackupStorage` of type
-`s3`) in the instance's namespace. The provider takes its endpoint, bucket,
-region and keys, and keeps the data under `rootPath` (default
-`milvus/<namespace>/<instance>`), apart from backups in the same bucket. In the
-UI, enter the location's name in **Object storage → Storage location**:
-
-```yaml
-spec:
-  topology:
-    parameters:
-      dependencies:
-        storage:
-          backupStorageName: s3-prod
-```
-
-The keys are copied into the `<instance>-object-storage` Secret on every
-reconcile; Milvus picks up rotated keys when its pods restart. Storage
-locations with `verifyTLS: false` are rejected: Milvus always verifies TLS.
-
-For anything a storage location can't express (cloud identity, Azure, a
-provider-specific client), point Milvus at existing services directly. With
+To keep Milvus data outside the cluster, point Milvus at existing services
+directly. With
 `useIAM` the pods authenticate through the ServiceAccount's cloud identity
 (e.g. EKS IRSA); otherwise `credentialsSecret` names a Secret with the keys
 `accesskey` and `secretkey`. `rootPath` lets several instances share one etcd
@@ -403,9 +384,9 @@ Backups use the `milvus-backup` BackupClass. For each Backup, Restore or
 deletion the provider runs the upstream milvus-backup CLI as a Job in the
 instance's namespace (`<backup>-mb`, `<restore>-mr`, `<backup>-md`); its log is
 the place to look when one fails. Backups copy the collections' data and index
-definitions to the BackupStorage under
-`everest/milvus/<namespace>/<instance>/<backup>`, and restores rebuild the
-indexes.
+definitions into the BackupStorage's bucket under the instance's backup path,
+`<prefix>/backups/<namespace>/<instance>/<instance-uid>/<storage>`, and
+restores rebuild the indexes.
 
 ```yaml
 apiVersion: backup.openeverest.io/v1alpha1
@@ -451,8 +432,10 @@ spec:
   itself, but not with the others.
 - Only one backup, restore or deletion runs per instance at a time; the others
   wait in `Pending`.
-- milvus-backup cannot skip TLS verification, so BackupStorages with
-  `verifyTLS: false` on an `https` endpoint are rejected.
+- A restore from another instance's backup needs that instance to still
+  exist: its UID is part of the backup path.
+- milvus-backup verifies TLS against the system trust store only, so
+  BackupStorages that set `tls.insecureSkipVerify` or `tls.ca` are rejected.
 
 #### Scheduled backups
 

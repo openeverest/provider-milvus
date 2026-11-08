@@ -92,6 +92,9 @@ type DeploymentGroup struct {
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 	// Affinity constrains where the group's pods run (a Kubernetes Affinity
 	// object, free-form to keep the published schema small).
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:validation:Type=object
+	// +kubebuilder:pruning:PreserveUnknownFields
 	Affinity map[string]any `json:"affinity,omitempty"`
 	// Annotations are added to the group's pods, e.g. a pool-specific network.
 	Annotations map[string]string `json:"annotations,omitempty"`
@@ -110,12 +113,21 @@ type PodCustomization struct {
 	// Env adds environment variables to the Milvus container.
 	Env []corev1.EnvVar `json:"env,omitempty"`
 	// Volumes are added to the pods (Kubernetes Volume objects).
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:validation:Type=array
+	// +kubebuilder:pruning:PreserveUnknownFields
 	Volumes []map[string]any `json:"volumes,omitempty"`
 	// VolumeMounts mount volumes into the Milvus container.
 	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
 	// SecurityContext is the Milvus container's security context (a Kubernetes
 	// SecurityContext object), e.g. the IPC_LOCK capability for RDMA.
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:validation:Type=object
+	// +kubebuilder:pruning:PreserveUnknownFields
 	SecurityContext map[string]any `json:"securityContext,omitempty"`
 	// InitContainers run before Milvus starts (Kubernetes Container objects).
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:validation:Type=array
+	// +kubebuilder:pruning:PreserveUnknownFields
 	InitContainers []map[string]any `json:"initContainers,omitempty"`
 }

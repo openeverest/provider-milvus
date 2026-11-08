@@ -149,9 +149,9 @@ func operationJobSpec(c *controller.Context, cr *milvusapi.Milvus, location back
 	if err != nil {
 		return backupJobSpec{}, err
 	}
-	backupStore, err := backupStorageObjectStore(location.storage, location.rootPath)
+	backupStore, err := backupStorageObjectStore(c, location.storage, location.rootPath)
 	if err != nil {
-		return backupJobSpec{}, err
+		return backupJobSpec{}, fmt.Errorf("BackupStorage %q: %w", location.storage.Name, err)
 	}
 	config, err := milvusBackupConfig(c.Name(), c.Namespace(), milvusStore, backupStore)
 	if err != nil {
@@ -206,7 +206,7 @@ func (p *Provider) CleanupBackup(c *controller.Context, backup *backupv1alpha1.B
 			}
 			return false, err
 		}
-		backupStore, err := backupStorageObjectStore(location.storage, location.rootPath)
+		backupStore, err := backupStorageObjectStore(c, location.storage, location.rootPath)
 		if err != nil {
 			return true, nil
 		}

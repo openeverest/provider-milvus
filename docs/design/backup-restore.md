@@ -52,7 +52,7 @@ These come from `openeverest/api` and `provider-runtime`:
 | `BackupProvider` = `SyncBackup` / `SyncRestore` / `CleanupBackup` / `CleanupRestore`; optional `BackupWatcher`, `RestoreWatcher`, `BackupMirror`, `BackupImporter` | `provider-runtime/controller/interface.go` | Interfaces we implement. |
 | Instance deletion with `deletionPolicy: Cascade` deletes child Backups/Restores **before** `Cleanup` | `reconciler/provider.go` `handleDeletion` | `CleanupBackup` can still read the Instance and Milvus CR. |
 | Seeding requires the target Instance to list the source Backup's storage in `spec.backup.storages` | `ReconcileDataSource` step 3 | Documented user requirement, same as PSMDB. |
-| `BackupStorage` = S3 only: bucket, region, endpointURL, verifyTLS, forcePathStyle, Secret with `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | `backupstorage_types.go` | Mapping in section 7.3. |
+| `BackupStorage` of the `s3` class: `location` (bucket, prefix), `parameters` (region, endpointURL, forcePathStyle, implementation), `tls`, `AccessKey` Secret with `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | `backupstorage_types.go`, `backupstorageclasses/s3` | Mapping in section 7.3. |
 
 Job execution mode was rejected for three reasons. It is unusable for
 `Instance.spec.backup` and `spec.dataSource`. Its payload (`jobspec.Spec`)
@@ -158,9 +158,13 @@ description: |
   Logical backups of Milvus collections with milvus-backup. Raw data and index
   metadata are copied to an S3-compatible BackupStorage; indexes are rebuilt
   on restore. Point-in-time recovery is not supported.
-supportedProviders:
-  - milvus
-executionMode: ProviderManaged
+backupStorageClasses:
+  - name: s3
+    authModes:
+      - AccessKey
+    tls:
+      customCA: None
+      insecureSkipVerify: None
 parametersSchema:
   openAPIV3Schema: MilvusBackupParameters
 restoreParametersSchema:
@@ -168,6 +172,9 @@ restoreParametersSchema:
 providerManaged:
   supportsPITR: false
 ```
+
+`provider-sdk generate` makes the class `ProviderManaged` and names the
+provider in `providerManaged.providerRef`.
 
 `types.go`. Every field is optional and the defaults are listed:
 
@@ -259,13 +266,13 @@ defaults.
 
 | BackupStorage | milvus-backup |
 |---|---|
-| `s3.endpointURL` | `address`, `port`, `useSSL` (parsed. Default port 443/80. No endpoint → `s3.<region>.amazonaws.com:443`) |
-| `s3.bucket` / `region` | `bucketName` / `region` |
-| `s3.forcePathStyle` | no knob. minio-go picks path-style for non-AWS hosts. Reject `forcePathStyle: true` with an AWS endpoint at validation |
-| `s3.verifyTLS: false` | **unsupported**. Fail validation with a clear message. Custom CA via the provider chart is a follow-up |
+| `parameters.endpointURL` | `address`, `port`, `useSSL` (`Endpoint()`: default port 443/80, `https` means TLS) |
+| `location.objectStore.bucket` / `parameters.region` | `bucketName` / `region` |
+| `parameters.forcePathStyle` | no knob. minio-go picks path-style for non-AWS hosts |
+| `tls.insecureSkipVerify`, `tls.ca` | **unsupported**. `Sync` rejects the storage (`TLSOptionUnsupported`) and holds its schedules |
 | credentials Secret | env `BACKUP_STORAGE_AUTH_ACCESS_KEY_ID` / `..._SECRET_ACCESS_KEY` ← keys `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` |
-| provider | `aws` for `*.amazonaws.com`, else `s3` |
-| `rootPath` | `everest/milvus/<namespace>/<instance>`; see section 7.4 |
+| provider | `aws` for `implementation: aws` (or unset), else `minio` |
+| `rootPath` | the runtime's backup path; see section 7.4 |
 
 `BackupStorage` and its Secret are in the Backup's namespace, which is also the
 Job's namespace, so `secretKeyRef` works without copying the Secret.
@@ -276,13 +283,15 @@ Job's namespace, so `secretKeyRef` works without copying the Secret.
   (`daily-2026-10-12` → `daily_2026_10_12`). Kubernetes names are unique per
   namespace, so `a-b` vs `a.b` is the only possible collision. `SyncBackup`
   fails the second one with a clear message.
-- **rootPath** = `everest/milvus/<namespace>/<instance>`. It is stable and
-  derivable from the Backup alone (`origin.instanceRef` plus namespace), so a
-  restore into *another* Instance finds the data without extra state. It is
-  namespaced so that same-named instances sharing a bucket don't collide.
+- **rootPath** = the runtime's backup path of the origin Instance and the
+  storage, `<prefix>/backups/<namespace>/<instance>/<instance-uid>/<storage>`
+  (`backupv1alpha1.BackupPath`; `ResolvedBackupStorage.Path` for schedules).
+  Scheduled and on-demand backups share it. A restore into *another* Instance
+  reads the origin Instance's UID, so that Instance must still exist.
 - **External / imported backups** use `spec.origin.external.path` =
-  `<rootPath>/<mbName>`. The last segment is the name and the rest is the
-  rootPath. This matches the PSMDB convention.
+  `<rootPath>/<mbName>`, relative to the storage's `location.objectStore.prefix`. The last
+  segment is the name and the rest is the rootPath. This matches the PSMDB
+  convention.
 
 ## 8. Flows
 
@@ -425,8 +434,8 @@ When `spec.backup.enabled`:
 
 - `classRef` is `milvus-backup`, `ValidateInstanceBackupAgainstClass` passes,
   and every `storageRef` exists and is `s3`.
-- `verifyTLS: false`, or `forcePathStyle: true` with an AWS endpoint, is
-  rejected (section 7.3).
+- `tls.insecureSkipVerify` or `tls.ca` is rejected in `Sync` with
+  `RejectBackupStorage` (section 7.3).
 - Cron expressions parse (`robfig/cron/v3` standard parser). Checked in
   `Sync` and reported as `BackupConfigError` (`InvalidSchedule`) on the
   `BackupConfigured` condition.
