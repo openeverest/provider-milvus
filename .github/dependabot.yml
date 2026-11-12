@@ -1,0 +1,14 @@
+# The milvus-operator is pinned as the bundled Helm subchart
+# (charts/provider-milvus/Chart.yaml). The provider carries its own Milvus API
+# types (internal/milvusapi), so there is no Go module to bump alongside it.
+version: 2
+
+updates:
+  - package-ecosystem: "helm"
+    directory: "/charts/provider-milvus"
+    schedule:
+      interval: "daily"
+    allow:
+      - dependency-name: "milvus-operator"
+    labels:
+      - "dependencies"
