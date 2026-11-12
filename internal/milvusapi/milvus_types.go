@@ -92,6 +92,9 @@ type HPASpec struct {
 type ServiceComponent struct {
 	Component `json:",inline"`
 	Port      int32 `json:"port,omitempty"`
+	// ServiceRestfulPort serves the REST API on a port of its own, added to
+	// the container and the Service as "restful".
+	ServiceRestfulPort int32 `json:"serviceRestfulPort,omitempty"`
 	// ServiceType controls how the operator exposes the gRPC service.
 	ServiceType corev1.ServiceType `json:"serviceType,omitempty"`
 	// ServiceAnnotations are applied to the exposed Service (e.g. cloud

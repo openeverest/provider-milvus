@@ -73,7 +73,7 @@ provider itself is covered under [Installation](#installation).
 | Pod customization | ✅ | Per-component `parameters.pod`: annotations, env, volumes, volume mounts, container security context, init containers |
 | Monitoring | ✅ | Prometheus: a PodMonitor for the Milvus components via `topology.parameters.monitoring.prometheus`; requires the Prometheus Operator |
 | Health checks | ✅ | `Ready` needs Milvus and its etcd, object storage and message stream healthy; reduced redundancy is reported in `status.message`; per-component probe tuning via `parameters.probes` |
-| TLS | ❌ | |
+| TLS | ✅ | gRPC and REST over TLS via `spec.parameters.tls`, with a generated certificate, your own, or one from a cert-manager issuer; no mutual TLS or TLS between Milvus components yet |
 
 Stateful workloads additionally report:
 
@@ -215,6 +215,60 @@ spec:
 - **ClusterIP** (default) — reachable only inside the cluster.
 - **LoadBalancer** — the connection host is the load balancer address once assigned.
 - **NodePort** — the connection host is a node address paired with the assigned node port.
+
+### Encrypt client connections with TLS
+
+Turn TLS on with the instance-wide `tls` parameter. Milvus then serves the gRPC
+API (port 19530) and the REST API (moved to port 8443: Milvus cannot share a
+TLS port between them) over TLS only:
+
+```yaml
+spec:
+  parameters:
+    tls:
+      mode: requireTLS                 # disabled (default) | requireTLS
+      # Pick one certificate source, or neither to have one generated:
+      certificateSecretName: my-tls    # tls.crt, tls.key and ca.crt
+      issuer:                          # cert-manager
+        name: corp-ca
+        kind: ClusterIssuer            # Issuer (default) | ClusterIssuer
+      additionalNames:                 # extra DNS names or IPs for issued certificates
+        - milvus.example.com
+```
+
+- **Certificates** are, in order of precedence:
+  1. your Secret, `certificateSecretName`. Its subject alternative names must cover
+     the names clients use, and `<instance>-milvus.<namespace>.svc`, which the provider
+     and backup Jobs connect to. Leave out `ca.crt` when a public CA signed it;
+  2. a cert-manager `issuer`: the provider requests a `Certificate` for the instance's
+     names, written to `<instance>-tls-issued`;
+  3. otherwise a certificate from a CA the provider creates for the instance
+     (`<instance>-tls-ca`, valid for 10 years), written to `<instance>-tls`. It is valid
+     for a year and re-issued 30 days before it expires, under the same CA.
+
+  Issued certificates cover `localhost`, the instance's Service in every form
+  (`<instance>-milvus`, `.<namespace>`, `.svc`, `.svc.cluster.local`), the published
+  host of a LoadBalancer or NodePort service, and `additionalNames`.
+- **Changes roll out by themselves.** Milvus reads its certificate only at startup, so a
+  new certificate (a renewal, a different source, a new published host) restarts the
+  standalone pod or the proxies; so does turning TLS on or off.
+- **Clients** verify the instance and authenticate with their password, without a client
+  certificate. The connection Secret's `uri` turns to `https://`, and `ca.crt` carries
+  the CA (omitted for a public CA):
+
+  ```python
+  client = MilvusClient(uri="https://<host>:19530", token="root:<password>",
+                        server_pem_path="ca.crt")
+  ```
+
+  Issued certificates cover `localhost`, so a port-forward works as is; with your own
+  certificate, pass `server_name=` one of its names.
+- The provider's own calls (root password rotation, the scale-in check) and the
+  `milvus-backup` Jobs switch to TLS with the instance.
+
+Not supported yet ([#88](https://github.com/openeverest/provider-milvus/issues/88)): mutual TLS (client certificates; `milvus-backup` cannot present one
+to the REST API) and TLS between Milvus components or to the bundled etcd and object
+storage.
 
 ### Customize component pods
 
@@ -610,11 +664,16 @@ code generation, and the backup/restore interfaces are documented once for all p
   scaled to 0. The `core/` suite covers create, authentication, dependency health,
   exposure, scheduling and delete; `scaling/` covers scale-out and autoscaling;
   `features/` covers engine configuration, pod customization, deployment groups, probes,
-  monitoring, upgrade and downgrade rejection, external dependencies and Pulsar.
+  monitoring, upgrade and downgrade rejection, external dependencies, Pulsar, a storage
+  location and TLS (generated, user and cert-manager certificates).
   See [test/integration/README.md](test/integration/README.md).
 - **Live end-to-end tests** — `make test-e2e-live` runs real standalone and cluster instances
   on the current cluster with the real operator: smoke test (pymilvus), backup and restore,
   upgrade with data, rejected downgrade, scaling, autoscaling, and clean deletion.
+- **Live TLS tests** — `make test-e2e-tls` serves real instances over TLS: clients over
+  gRPC and REST, plain text rejected, root password rotation, backup and restore, the
+  user's certificate and its renewal, TLS turned off, and a cluster whose certificate a
+  cert-manager issuer signs (when cert-manager is installed).
 - **Conformance tests** — part of `make test-unit`. The OpenEverest conformance harness checks
   that every UI field and every `supportedFields` declaration changes what the provider
   applies; the version matrix checks every shipped version bundle validates, deploys a single
@@ -624,9 +683,9 @@ code generation, and the backup/restore interfaces are documented once for all p
   of the same build and verifies the data.
 - **CI** — `.github/workflows/ci.yaml` runs lint, build, unit tests, generated-file
   verification, Helm lint, and each integration suite on every pull request.
-  `.github/workflows/e2e.yaml` runs the live end-to-end tests and the live version matrix
-  on k3d (about 30 minutes each, in parallel) nightly, on demand, and on pull requests
-  labelled `e2e`.
+  `.github/workflows/e2e.yaml` runs the live end-to-end tests, the live TLS tests and the
+  live version matrix on k3d (about 30 minutes each, in parallel) nightly, on demand, and
+  on pull requests labelled `e2e`.
 
 ## Troubleshooting
 

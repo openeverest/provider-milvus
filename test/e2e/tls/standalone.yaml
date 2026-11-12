@@ -1,0 +1,24 @@
+# Standalone instance serving clients over TLS with a generated certificate.
+apiVersion: core.openeverest.io/v1alpha1
+kind: Instance
+metadata:
+  name: tls-standalone
+spec:
+  providerRef:
+    name: milvus
+  topology:
+    type: standalone
+  parameters:
+    tls:
+      mode: requireTLS
+  components:
+    standalone:
+      type: milvus
+      replicas: 1
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: "1"
+          memory: 2Gi

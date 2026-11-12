@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Run the Milvus data-plane smoke test against an Instance from inside the cluster.
-# Usage: [MODE=full|write|verify] [REPLICAS=n] test/e2e/run-smoke.sh <namespace> <instance>
+# Usage: [MODE=full|write|verify|rejected] [REPLICAS=n] [MILVUS_URI=uri] [MILVUS_REST_URL=url] \
+#   test/e2e/run-smoke.sh <namespace> <instance>
+# MILVUS_URI overrides the connection Secret's uri; the Secret's ca.crt, if
+# any, verifies a TLS instance.
 set -euo pipefail
 
 NAMESPACE=${1:?namespace}
@@ -35,8 +38,15 @@ spec:
               value: ${MODE}
             - name: REPLICAS
               value: "${REPLICAS}"
-            - name: MILVUS_URI
-              valueFrom: {secretKeyRef: {name: ${INSTANCE}-conn, key: uri}}
+$(if [[ -n "${MILVUS_URI:-}" ]]; then
+  printf '            - name: MILVUS_URI\n              value: "%s"\n' "$MILVUS_URI"
+else
+  printf '            - name: MILVUS_URI\n              valueFrom: {secretKeyRef: {name: %s-conn, key: uri}}\n' "$INSTANCE"
+fi)
+            - name: MILVUS_CA
+              valueFrom: {secretKeyRef: {name: ${INSTANCE}-conn, key: ca.crt, optional: true}}
+            - name: MILVUS_REST_URL
+              value: "${MILVUS_REST_URL:-}"
             - name: MILVUS_TOKEN
               valueFrom: {secretKeyRef: {name: ${INSTANCE}-conn, key: token}}
           volumeMounts:

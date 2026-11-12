@@ -2,6 +2,10 @@
 # Keep this aligned with common.ProviderName and the chart metadata.
 name: milvus
 
+# Instance-wide parameters (Instance.spec.parameters), a Go type in
+# definition/types.go.
+parametersSchema: Parameters
+
 components:
   standalone:
     type: milvus

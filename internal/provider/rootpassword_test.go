@@ -30,7 +30,7 @@ func TestMilvusRESTClientUpdatePassword(t *testing.T) {
 	}))
 	defer server.Close()
 
-	require.NoError(t, newMilvusRESTClient().UpdatePassword(t.Context(), server.URL, "old", "new"))
+	require.NoError(t, newMilvusRESTClient().UpdatePassword(t.Context(), milvusEndpoint{url: server.URL}, "old", "new"))
 
 	assert.Equal(t, "/v2/vectordb/users/update_password", gotPath)
 	assert.Equal(t, "Bearer root:old", gotAuth)
@@ -54,7 +54,7 @@ func TestMilvusRESTClientErrors(t *testing.T) {
 			}))
 			defer server.Close()
 
-			err := newMilvusRESTClient().Authenticate(t.Context(), server.URL, "pw")
+			err := newMilvusRESTClient().Authenticate(t.Context(), milvusEndpoint{url: server.URL}, "pw")
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.wantErr)
 			assert.NotContains(t, err.Error(), "pw", "errors must not leak the password")
@@ -67,7 +67,7 @@ type fakeRootPasswordAPI struct {
 	updates  [][2]string
 }
 
-func (f *fakeRootPasswordAPI) UpdatePassword(_ context.Context, _, oldPassword, newPassword string) error {
+func (f *fakeRootPasswordAPI) UpdatePassword(_ context.Context, _ milvusEndpoint, oldPassword, newPassword string) error {
 	f.updates = append(f.updates, [2]string{oldPassword, newPassword})
 	if oldPassword != f.accepted {
 		return errors.New("old password not correct")
@@ -76,7 +76,7 @@ func (f *fakeRootPasswordAPI) UpdatePassword(_ context.Context, _, oldPassword, 
 	return nil
 }
 
-func (f *fakeRootPasswordAPI) Authenticate(_ context.Context, _, password string) error {
+func (f *fakeRootPasswordAPI) Authenticate(_ context.Context, _ milvusEndpoint, password string) error {
 	if password != f.accepted {
 		return errors.New("auth check failure")
 	}

@@ -192,6 +192,67 @@ ui:
             helperText: "Creates a PodMonitor that scrapes Milvus metrics. Requires the Prometheus Operator."
       componentsOrder:
         - prometheus
+    tls:
+      label: "TLS"
+      description: "Encrypt connections between clients and Milvus."
+      components:
+        mode:
+          uiType: select
+          path: spec.parameters.tls.mode
+          fieldParams:
+            label: "TLS mode"
+            defaultValue: "disabled"
+            options:
+              - label: "Disabled: clients connect in plain text"
+                value: "disabled"
+              - label: "Required: clients must use TLS"
+                value: "requireTLS"
+        certificates:
+          uiType: group
+          groupType: bordered
+          label: "Certificate"
+          description: "Leave empty to have a certificate issued by a CA created for the instance. Clients find the CA in the connection secret as ca.crt."
+          components:
+            certificateSecretName:
+              uiType: text
+              path: spec.parameters.tls.certificateSecretName
+              fieldParams:
+                label: "Certificate secret"
+                helperText: "Secret with tls.crt, tls.key and ca.crt; it must cover <instance>-milvus.<namespace>.svc"
+              validation:
+                celExpressions:
+                  - celExpr: "!has(spec.parameters.tls.certificateSecretName) || spec.parameters.tls.certificateSecretName == '' || !has(spec.parameters.tls.issuer.name) || spec.parameters.tls.issuer.name == ''"
+                    message: "Use either a certificate secret or an issuer, not both"
+            issuer:
+              uiType: group
+              groupType: line
+              components:
+                issuerName:
+                  uiType: text
+                  path: spec.parameters.tls.issuer.name
+                  fieldParams:
+                    label: "cert-manager issuer"
+                    helperText: "Issuer that signs the certificate"
+                issuerKind:
+                  uiType: select
+                  path: spec.parameters.tls.issuer.kind
+                  fieldParams:
+                    label: "Issuer kind"
+                    defaultValue: "Issuer"
+                    options:
+                      - label: "Issuer"
+                        value: "Issuer"
+                      - label: "ClusterIssuer"
+                        value: "ClusterIssuer"
+              componentsOrder:
+                - issuerName
+                - issuerKind
+          componentsOrder:
+            - certificateSecretName
+            - issuer
+      componentsOrder:
+        - mode
+        - certificates
     advanced:
       label: "Advanced configuration"
       description: "Configure advanced Milvus engine settings."
@@ -238,4 +299,5 @@ ui:
     - objectStorage
     - metadataStore
     - monitoring
+    - tls
     - advanced

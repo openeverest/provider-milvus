@@ -156,8 +156,25 @@ func backupStorageObjectStore(bs *backupv1alpha1.BackupStorage, rootPath string)
 
 // milvusBackupConfig renders the milvus-backup config file. Credentials are
 // never written here: milvus-backup reads them from environment variables.
-func milvusBackupConfig(instance, namespace string, milvus, backup backupObjectStore) (string, error) {
+func milvusBackupConfig(instance, namespace string, milvus, backup backupObjectStore, tls tlsState) (string, error) {
 	service := fmt.Sprintf("%s-milvus.%s.svc", instance, namespace)
+	grpc := map[string]any{"address": service, "port": milvusGRPCPort}
+	milvusConfig := map[string]any{
+		"user":       rootUsername,
+		"grpc":       grpc,
+		"management": map[string]any{"endpoint": fmt.Sprintf("http://%s:%d", service, milvusManagementPort)},
+		"storage":    milvus.values(),
+	}
+	if tls.enabled {
+		grpc["tlsMode"] = "server"
+		if len(tls.ca) > 0 {
+			grpc["caCertPath"] = backupTLSMountPath + "/" + tlsKeyCA
+		}
+		// REST has a port of its own under TLS; milvus-backup's REST client
+		// verifies it against the system roots, which the Job extends with
+		// the CA through SSL_CERT_DIR.
+		milvusConfig["rest"] = map[string]any{"endpoint": fmt.Sprintf("https://%s:%d", service, milvusRESTTLSPort)}
+	}
 	config := map[string]any{
 		"configVersion": "v2",
 		"log": map[string]any{
@@ -166,12 +183,7 @@ func milvusBackupConfig(instance, namespace string, milvus, backup backupObjectS
 			// The root filesystem is read-only; /tmp is an emptyDir.
 			"file": map[string]any{"path": "/tmp/milvus-backup.log"},
 		},
-		"milvus": map[string]any{
-			"user":       rootUsername,
-			"grpc":       map[string]any{"address": service, "port": milvusGRPCPort},
-			"management": map[string]any{"endpoint": fmt.Sprintf("http://%s:%d", service, milvusManagementPort)},
-			"storage":    milvus.values(),
-		},
+		"milvus": milvusConfig,
 		"backup": map[string]any{
 			"storage": backup.values(),
 		},

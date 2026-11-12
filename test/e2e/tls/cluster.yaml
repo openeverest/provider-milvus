@@ -1,0 +1,43 @@
+# Cluster instance whose proxy serves TLS with a certificate cert-manager
+# issues.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: tls-e2e-selfsigned
+spec:
+  selfSigned: {}
+---
+apiVersion: core.openeverest.io/v1alpha1
+kind: Instance
+metadata:
+  name: tls-cluster
+spec:
+  providerRef:
+    name: milvus
+  topology:
+    type: cluster
+    parameters:
+      dependencies:
+        etcd:
+          replicas: 1
+  parameters:
+    tls:
+      mode: requireTLS
+      issuer:
+        name: tls-e2e-selfsigned
+  components:
+    proxy:
+      type: milvus
+      replicas: 1
+    mixCoord:
+      type: milvus
+      replicas: 1
+    dataNode:
+      type: milvus
+      replicas: 1
+    queryNode:
+      type: milvus
+      replicas: 1
+    streamingNode:
+      type: milvus
+      replicas: 1

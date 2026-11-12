@@ -171,16 +171,16 @@ func hasResource(resources *corev1.ResourceRequirements, name corev1.ResourceNam
 
 // loadedReplicasAPI reports how many replicas each loaded collection has.
 type loadedReplicasAPI interface {
-	LoadedReplicas(ctx context.Context, baseURL, password string) (map[string]int32, error)
+	LoadedReplicas(ctx context.Context, endpoint milvusEndpoint, password string) (map[string]int32, error)
 }
 
 // LoadedReplicas sums the replicas of each loaded collection over all
 // resource groups. Every replica needs a query node of its own.
-func (m milvusRESTClient) LoadedReplicas(ctx context.Context, baseURL, password string) (map[string]int32, error) {
+func (m milvusRESTClient) LoadedReplicas(ctx context.Context, endpoint milvusEndpoint, password string) (map[string]int32, error) {
 	var groups struct {
 		Data []string `json:"data"`
 	}
-	if err := m.call(ctx, baseURL+"/v2/vectordb/resource_groups/list", password, map[string]string{}, &groups); err != nil {
+	if err := m.call(ctx, endpoint, "/v2/vectordb/resource_groups/list", password, map[string]string{}, &groups); err != nil {
 		return nil, err
 	}
 	replicas := map[string]int32{}
@@ -190,7 +190,7 @@ func (m milvusRESTClient) LoadedReplicas(ctx context.Context, baseURL, password 
 				NumLoadedReplica map[string]int32 `json:"num_loaded_replica"`
 			} `json:"resource_group"`
 		}
-		if err := m.call(ctx, baseURL+"/v2/vectordb/resource_groups/describe", password, map[string]string{"name": group}, &described); err != nil {
+		if err := m.call(ctx, endpoint, "/v2/vectordb/resource_groups/describe", password, map[string]string{"name": group}, &described); err != nil {
 			return nil, err
 		}
 		for collection, n := range described.ResourceGroup.NumLoadedReplica {
@@ -202,19 +202,23 @@ func (m milvusRESTClient) LoadedReplicas(ctx context.Context, baseURL, password 
 
 // call posts body and decodes the response into out. Milvus reports API
 // errors as HTTP 200 with a non-zero code.
-func (m milvusRESTClient) call(ctx context.Context, url, password string, body, out any) error {
+func (m milvusRESTClient) call(ctx context.Context, endpoint milvusEndpoint, path, password string, body, out any) error {
+	httpClient, err := m.httpClient(endpoint)
+	if err != nil {
+		return err
+	}
 	payload, err := json.Marshal(body)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.url+path, bytes.NewReader(payload))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+rootUsername+":"+password)
 
-	resp, err := m.http.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -266,7 +270,11 @@ func (p *Provider) validateReplicaHostsScaleIn(c *controller.Context) error {
 	if err := c.Get(credentials, credentialsSecretName(c.Name())); err != nil {
 		return nil
 	}
-	loaded, err := p.loadedReplicas.LoadedReplicas(c.Context(), milvusInternalURL(c), string(credentials.Data[secretKeyAppliedPassword]))
+	endpoint, err := milvusInternalEndpoint(c)
+	if err != nil {
+		return nil
+	}
+	loaded, err := p.loadedReplicas.LoadedReplicas(c.Context(), endpoint, string(credentials.Data[secretKeyAppliedPassword]))
 	if err != nil {
 		log.FromContext(c.Context()).Info("Cannot check loaded replicas before scaling in", "error", err.Error())
 		return nil

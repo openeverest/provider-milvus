@@ -2,6 +2,9 @@ package provider
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -17,40 +20,69 @@ import (
 
 // rootPasswordAPI changes and checks the Milvus root password.
 type rootPasswordAPI interface {
-	UpdatePassword(ctx context.Context, baseURL, oldPassword, newPassword string) error
-	Authenticate(ctx context.Context, baseURL, password string) error
+	UpdatePassword(ctx context.Context, endpoint milvusEndpoint, oldPassword, newPassword string) error
+	Authenticate(ctx context.Context, endpoint milvusEndpoint, password string) error
+}
+
+// milvusEndpoint is where the Milvus REST API is served and, under TLS, the
+// CA that verifies it; an empty CA means the system roots.
+type milvusEndpoint struct {
+	url string
+	ca  []byte
 }
 
 // milvusRESTClient talks to the Milvus RESTful API, which the proxy serves on
-// the gRPC port.
+// the gRPC port, or a port of its own under TLS.
 type milvusRESTClient struct {
-	http *http.Client
+	timeout time.Duration
 }
 
 func newMilvusRESTClient() milvusRESTClient {
-	return milvusRESTClient{http: &http.Client{Timeout: 10 * time.Second}}
+	return milvusRESTClient{timeout: 10 * time.Second}
 }
 
-func (m milvusRESTClient) UpdatePassword(ctx context.Context, baseURL, oldPassword, newPassword string) error {
-	return m.post(ctx, baseURL+"/v2/vectordb/users/update_password", oldPassword, map[string]string{
+// httpClient trusts only the endpoint's CA when it has one.
+func (m milvusRESTClient) httpClient(endpoint milvusEndpoint) (*http.Client, error) {
+	if len(endpoint.ca) == 0 {
+		return &http.Client{Timeout: m.timeout}, nil
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(endpoint.ca) {
+		return nil, errors.New("the TLS CA has no PEM certificate")
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+	return &http.Client{Timeout: m.timeout, Transport: transport}, nil
+}
+
+func (m milvusRESTClient) UpdatePassword(ctx context.Context, endpoint milvusEndpoint, oldPassword, newPassword string) error {
+	return m.post(ctx, endpoint, "/v2/vectordb/users/update_password", oldPassword, map[string]string{
 		"userName":    rootUsername,
 		"password":    oldPassword,
 		"newPassword": newPassword,
 	})
 }
 
-func (m milvusRESTClient) Authenticate(ctx context.Context, baseURL, password string) error {
-	return m.post(ctx, baseURL+"/v2/vectordb/users/list", password, map[string]string{})
+func (m milvusRESTClient) Authenticate(ctx context.Context, endpoint milvusEndpoint, password string) error {
+	return m.post(ctx, endpoint, "/v2/vectordb/users/list", password, map[string]string{})
 }
 
-func (m milvusRESTClient) post(ctx context.Context, url, password string, body any) error {
-	return m.call(ctx, url, password, body, &struct{}{})
+func (m milvusRESTClient) post(ctx context.Context, endpoint milvusEndpoint, path, password string, body any) error {
+	return m.call(ctx, endpoint, path, password, body, &struct{}{})
 }
 
-// milvusInternalURL is the in-cluster address of the instance's Milvus API,
-// served by the same Service whatever the exposure type.
-func milvusInternalURL(c *controller.Context) string {
-	return fmt.Sprintf("http://%s-milvus.%s.svc:%s", c.Name(), c.Namespace(), milvusPort)
+// milvusInternalEndpoint is the in-cluster address of the instance's Milvus
+// API, served by the same Service whatever the exposure type.
+func milvusInternalEndpoint(c *controller.Context) (milvusEndpoint, error) {
+	service := fmt.Sprintf("%s-milvus.%s.svc", c.Name(), c.Namespace())
+	state, err := currentTLS(c)
+	if err != nil {
+		return milvusEndpoint{}, err
+	}
+	if !state.enabled {
+		return milvusEndpoint{url: fmt.Sprintf("http://%s:%s", service, milvusPort)}, nil
+	}
+	return milvusEndpoint{url: fmt.Sprintf("https://%s:%d", service, milvusRESTTLSPort), ca: state.ca}, nil
 }
 
 // syncRootPassword rotates the Milvus root password to the one in the
@@ -65,12 +97,15 @@ func (p *Provider) syncRootPassword(c *controller.Context, creds rootCredentials
 		return nil
 	}
 
-	baseURL := milvusInternalURL(c)
-	if err := p.rootPassword.UpdatePassword(c.Context(), baseURL, creds.appliedPassword, creds.password); err != nil {
+	endpoint, err := milvusInternalEndpoint(c)
+	if err != nil {
+		return err
+	}
+	if err := p.rootPassword.UpdatePassword(c.Context(), endpoint, creds.appliedPassword, creds.password); err != nil {
 		// A rotation interrupted before it was recorded leaves the applied
 		// password stale, and Milvus seeds a not-yet-created root user with
 		// the new password directly.
-		if p.rootPassword.Authenticate(c.Context(), baseURL, creds.password) != nil {
+		if p.rootPassword.Authenticate(c.Context(), endpoint, creds.password) != nil {
 			return fmt.Errorf("rotate root password: %w", err)
 		}
 	}
