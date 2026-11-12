@@ -251,10 +251,10 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 		bundle, _ = controller.ResolveVersionBundle(providerSpec, resolvedVersion)
 	}
 	if resolvedVersion == "" {
-		resolvedVersion = "2.6.25"
+		resolvedVersion = "2.6.27"
 	}
 
-	baseImage := "milvusdb/milvus:v2.6.25"
+	baseImage := "milvusdb/milvus:v2.6.27"
 	if image := resolveMilvusImage(c, common.ComponentStandalone, resolvedVersion); image != "" {
 		baseImage = image
 	}

@@ -49,6 +49,7 @@ manages pods directly — all lifecycle work is delegated to the operator.
 
 | provider-milvus | OpenEverest | Operator | Kubernetes |
 |---|---|---|---|
+| `0.5.x` | `>= 2.0.0` | `1.3.13` | `1.30` – `1.36` |
 | `0.4.x` | `>= 2.0.0` | `1.3.11` | `1.30` – `1.36` |
 | `0.3.x` | `>= 2.0.0` | `1.3.11` | `1.30` – `1.34` |
 | `0.2.x` | `>= 2.0.0` | `1.3.9` | `1.30` – `1.34` |
@@ -110,6 +111,10 @@ Uninstalling the chart does **not** delete running `Instance` resources or their
 Upgrading from `0.2.x` moves the bundled operator to 1.3.11. Milvus pods of
 existing instances restart once; their bundled MinIO is left as is, while new
 instances get its successor, Silo.
+
+Upgrading from `0.4.x` moves the bundled operator to 1.3.13. Only instances that
+set a container `securityContext` in `parameters.pod` restart once, as the
+operator now applies it to the config init container too.
 
 ## Usage
 
@@ -508,7 +513,9 @@ spec:
 <!-- BEGIN GENERATED: versions -->
 | Version bundle | Default |  |
 |---|---|---|
-| `2.6.25` | ✅ | |
+| `2.6.27` | ✅ | |
+| `2.6.27-gpu` | | GPU build of every component |
+| `2.6.25` | | |
 | `2.6.25-gpu` | | GPU build of every component |
 | `2.6.15` | | |
 | `2.6.15-gpu` | | GPU build of every component |

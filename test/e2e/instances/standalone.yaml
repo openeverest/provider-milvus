@@ -6,7 +6,7 @@ spec:
   providerRef:
     name: milvus
   # Starts one version behind so the run can upgrade it.
-  version: "2.6.15"
+  version: "2.6.25"
   topology:
     type: standalone
   components:
