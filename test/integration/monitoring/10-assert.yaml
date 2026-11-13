@@ -1,0 +1,25 @@
+# The provider renders the Milvus CR without the operator's own PodMonitor.
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: monitoring
+spec:
+  mode: standalone
+  components:
+    disableMetric: true
+---
+# Core creates the binding; no extension runs here, so it stays unconfigured.
+apiVersion: monitoring.openeverest.io/v1alpha1
+kind: MonitoringBinding
+metadata:
+  labels:
+    core.openeverest.io/instance: monitoring
+    monitoring.openeverest.io/entry: metrics
+spec:
+  destinationRef:
+    name: metrics-it
+  classRef:
+    name: metrics-it-milvus
+  executionMode: ExtensionManaged
+status:
+  (conditions[?type == 'Accepted'].status | [0]): "True"

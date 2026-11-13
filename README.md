@@ -71,7 +71,7 @@ provider itself is covered under [Installation](#installation).
 | Network exposure | ✅ | ClusterIP, NodePort or LoadBalancer via the component `service` |
 | Pod scheduling | ✅ | Per-component `schedulingPolicy` (affinity, tolerations, node selector, topology spread, scheduler); not applied to bundled dependencies |
 | Pod customization | ✅ | Per-component `parameters.pod`: annotations, env, volumes, volume mounts, container security context, init containers |
-| Monitoring | ✅ | Prometheus: a PodMonitor for the Milvus components via `topology.parameters.monitoring.prometheus`; requires the Prometheus Operator |
+| Monitoring | ✅ | Native metrics endpoints of every Milvus component, published in `status.monitoring.sources` for monitoring extensions (`spec.monitoring.destinations`) or your own scraper |
 | Health checks | ✅ | `Ready` needs Milvus and its etcd, object storage and message stream healthy; reduced redundancy is reported in `status.message`; per-component probe tuning via `parameters.probes` |
 | TLS | ✅ | gRPC and REST over TLS via `spec.parameters.tls`, with a generated certificate, your own, or one from a cert-manager issuer; no mutual TLS or TLS between Milvus components yet |
 
@@ -121,6 +121,14 @@ Uninstalling the chart does **not** delete running `Instance` resources or their
 Upgrading from `0.2.x` moves the bundled operator to 1.3.11. Milvus pods of
 existing instances restart once; their bundled MinIO is left as is, while new
 instances get its successor, Silo.
+
+Upgrading to the release with the monitoring contract stops the provider from creating
+PodMonitors. `topology.parameters.monitoring.prometheus` is deprecated: it is still accepted,
+with a warning, but has no effect, and the upgrade deletes the `<instance>-metrics` PodMonitor
+it created. To keep scraping, list a monitoring destination on the Instance or create your own
+PodMonitor (see [Monitor it](#monitor-it)), then drop the parameter. Upgrade OpenEverest core
+first: a provider that predates the monitoring contract drops `spec.monitoring` from the
+Instances it updates.
 
 Upgrading from `0.4.x` moves the bundled operator to 1.3.13. Only instances that
 set a container `securityContext` in `parameters.pod` restart once, as the
@@ -417,26 +425,76 @@ spec:
           serviceAccountName: milvus-s3
 ```
 
-### Scrape metrics with Prometheus
+### Monitor it
 
-With the [Prometheus Operator](https://prometheus-operator.dev) in the cluster,
-enable Prometheus to get a PodMonitor (`<instance>-metrics`) that scrapes every
-Milvus component on its `metrics` port. `podMonitorLabels` lets your Prometheus
-`podMonitorSelector` pick it up; `interval` defaults to the Prometheus global
-scrape interval. Turning it off removes the PodMonitor. The bundled etcd, MinIO
-and Pulsar are not scraped.
+Every Milvus component serves Prometheus metrics itself, on its `metrics`
+port (9091) at `/metrics`. Once Milvus is up, the provider lists these
+endpoints in the Instance's `status.monitoring.sources.metrics`, one per
+component, with the pod selector, port, path and scheme to scrape:
+
+```bash
+kubectl get instance <name> -o jsonpath='{.status.monitoring.sources.metrics}'
+```
+
+They are always on: listing a destination, or setting
+`spec.monitoring.sources.metrics.policy`, restarts nothing. The bundled etcd,
+MinIO and Pulsar are not listed.
+
+**Send metrics with a monitoring extension.** Install an extension such as
+[monitoring-prometheus](https://github.com/openeverest/monitoring-prometheus),
+create a destination of its class in the Instance's namespace, and list it on
+the Instance. The extension creates the scrape objects (for Prometheus, a
+`PodMonitor`) and the Instance reports the destination's readiness under
+`status.monitoring.destinations`:
 
 ```yaml
+apiVersion: monitoring.openeverest.io/v1alpha1
+kind: MonitoringDestination
+metadata:
+  name: prometheus
 spec:
-  topology:
-    type: standalone
-    parameters:
-      monitoring:
-        prometheus:
-          enabled: true
-          interval: 30s
-          podMonitorLabels:
-            release: kube-prometheus-stack
+  classRef:
+    name: prometheus
+  authentication:
+    mode: Anonymous
+  parameters:
+    interval: 30s
+    podMonitorLabels:
+      release: kube-prometheus-stack
+---
+apiVersion: core.openeverest.io/v1alpha1
+kind: Instance
+metadata:
+  name: my-milvus
+spec:
+  # ...
+  monitoring:
+    destinations:
+      - name: prometheus
+        destinationRef:
+          name: prometheus
+```
+
+Removing the entry removes what the extension created for it.
+
+**Scrape them yourself.** A collector OpenEverest does not configure (your own
+`PodMonitor`, Grafana Alloy, a Datadog agent) can scrape the published
+endpoints directly, without a destination. For the Prometheus Operator:
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: my-milvus
+spec:
+  selector:
+    matchLabels:
+      core.openeverest.io/instance: my-milvus
+  podTargetLabels:
+    - core.openeverest.io/component
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
 ```
 
 ### Check health
@@ -701,8 +759,10 @@ code generation, and the backup/restore interfaces are documented once for all p
   scaled to 0. The `core/` suite covers create, authentication, admission, dependency health,
   exposure, scheduling and delete; `scaling/` covers scale-out and autoscaling;
   `presets/` covers the ClusterInstancePresets the chart ships;
+  `monitoring/` covers the published metrics endpoints, a destination's binding and the
+  removal of the legacy PodMonitor;
   `features/` covers engine configuration, pod customization, deployment groups, probes,
-  monitoring, upgrade and downgrade rejection, external dependencies, Pulsar, a storage
+  upgrade and downgrade rejection, external dependencies, Pulsar, a storage
   location and TLS (generated, user and cert-manager certificates).
   See [test/integration/README.md](test/integration/README.md).
 - **Live end-to-end tests** — `make test-e2e-live` runs real standalone and cluster instances

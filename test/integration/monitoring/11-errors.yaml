@@ -1,0 +1,5 @@
+# The PodMonitor earlier releases created is gone, and the provider creates none.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: monitoring-metrics

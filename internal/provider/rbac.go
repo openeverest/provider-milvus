@@ -27,9 +27,18 @@ package provider
 // Nodes are read to resolve a reachable address for NodePort-exposed instances.
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments;statefulsets,verbs=get;list;watch;create;update;patch;delete
-// PodMonitor of the Prometheus integration; the operator's own one is removed.
+// cert-manager Certificates for TLS issued by the user's issuer.
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=monitoring.coreos.com,resources=podmonitors,verbs=get;list;watch;create;update;patch;delete
+
+// Monitoring contract: the runtime watches the Instances' bindings and the
+// destinations and classes they reference, and reads the kube-system
+// namespace UID that identifies the cluster in the published sources.
+// +kubebuilder:rbac:groups=monitoring.openeverest.io,resources=monitoringclasses;monitoringdestinations;monitoringbindings,verbs=get;list;watch
+// +kubebuilder:rbac:groups=monitoring.openeverest.io,resources=monitoringbindings/status,verbs=patch
+// +kubebuilder:rbac:groups="",resources=namespaces,verbs=get
+
+// The PodMonitor earlier releases created, deleted on upgrade.
+// +kubebuilder:rbac:groups=monitoring.coreos.com,resources=podmonitors,verbs=delete
 
 // Backups and restores: the runtime's Backup/Restore reconcilers, and the
 // milvus-backup Jobs the provider runs for them.

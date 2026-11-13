@@ -55,11 +55,11 @@ func allowedComponentsForTopology(topologyType string) []string {
 func (p *Provider) Validate(in controller.ValidationInput) controller.ValidationResult {
 	errs := validateSpec(in.Instance)
 	errs = append(errs, validateTransition(in.Instance, in.Old, &in.Provider.Spec)...)
-	return controller.ValidationResult{Errors: errs}
+	return controller.ValidationResult{Errors: errs, Warnings: monitoringWarnings(in.Instance)}
 }
 
 // ValidateReferences checks the rules that read other objects: the storage
-// location, the TLS certificate Secret, the PodMonitor CRD and, once it runs,
+// location, the TLS certificate Secret and, once it runs,
 // the Milvus CR and the collections it has loaded. Admission reports what it
 // finds as warnings; before Sync it blocks the Instance until fixed.
 func (p *Provider) ValidateReferences(c *controller.Context) (field.ErrorList, error) {
@@ -70,7 +70,6 @@ func (p *Provider) ValidateReferences(c *controller.Context) (field.ErrorList, e
 	}
 	for _, check := range []func(*controller.Context) (field.ErrorList, error){
 		validateTLSReferences,
-		validateMonitoringReferences,
 		p.validateRunningInstance,
 	} {
 		checkErrs, err := check(c)
@@ -296,7 +295,6 @@ func validateSpec(in *corev1alpha1.Instance) field.ErrorList {
 		errs = appendErr(errs, componentsPath, err)
 	}
 	errs = append(errs, validateComponentParameters(in)...)
-	errs = appendErr(errs, topologyParametersPath.Child("monitoring", "prometheus"), validateMonitoring(in))
 	errs = appendErr(errs, parametersPath.Child("tls"), validateTLS(in))
 	if topologyType == "cluster" {
 		errs = appendErr(errs, componentsPath.Key(common.ComponentMixCoord).Child("replicas"), validateMixCoordStandby(in))

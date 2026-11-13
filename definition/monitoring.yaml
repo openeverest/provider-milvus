@@ -1,0 +1,14 @@
+# Monitoring contract, published by `provider-sdk generate` as
+# Provider.spec.monitoring.
+#
+# componentTypes: what each component type from provider.yaml exposes (its
+# kind is declared in provider.yaml). Every Milvus component serves
+# OpenMetrics itself (port "metrics", 9091, /metrics), so no exporter runs and
+# the endpoints are always on. The bundled etcd, MinIO and Pulsar are not
+# Instance components and are not published. There are no operator-native
+# integrations: monitoring extensions scrape the endpoints the provider
+# publishes in Instance.status.monitoring.sources.
+
+componentTypes:
+  milvus:
+    metrics: Native

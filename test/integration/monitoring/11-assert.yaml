@@ -1,0 +1,21 @@
+# Once Milvus is up, the provider publishes its native endpoint for the
+# extension.
+apiVersion: core.openeverest.io/v1alpha1
+kind: Instance
+metadata:
+  name: monitoring
+status:
+  phase: Ready
+  monitoring:
+    (destinations[?name == 'metrics'] | [0]):
+      mode: ExtensionManaged
+    sources:
+      metrics:
+        - component: standalone
+          kind: milvus
+          podSelector:
+            core.openeverest.io/instance: monitoring
+            core.openeverest.io/component: standalone
+          port: metrics
+          path: /metrics
+          scheme: http

@@ -122,6 +122,15 @@ jobs:
       suite: presets
     secrets: inherit
 
+  test-integration-monitoring:
+    name: Integration / monitoring
+    needs: [lint, build, verify]
+    uses: ./.github/workflows/integration-test.yaml
+    with:
+      make_target: test-integration-monitoring
+      suite: monitoring
+    secrets: inherit
+
   test-integration-features:
     name: Integration / features
     needs: [lint, build, verify]

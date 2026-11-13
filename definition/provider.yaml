@@ -40,3 +40,12 @@ components:
   streamingNode:
     type: milvus
     parametersSchema: MilvusParameters
+
+# Component types: the kind of the software each type runs, published as
+# Provider.spec.componentTypes.<type>.kind and matched by monitoring classes.
+# Milvus has no OpenTelemetry db.system.name of its own, so it takes the
+# lowercase product name, as the convention says. Version catalogs stay in
+# versions.yaml.
+componentTypes:
+  milvus:
+    kind: milvus
