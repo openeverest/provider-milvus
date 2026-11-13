@@ -7326,20 +7326,18 @@ spec:
                   fieldParams:
                     defaultValue: 1
                     label: CPU
-                    step: 0.1
+                    unitLabel: CPU
                   path: spec.components.mixCoord.resources.limits.cpu
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 memory:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 2
                     label: RAM
-                    step: 0.1
+                    unit: Gi
                   path: spec.components.mixCoord.resources.limits.memory
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.5
               groupType: line
@@ -7395,20 +7393,18 @@ spec:
                   fieldParams:
                     defaultValue: 1
                     label: CPU
-                    step: 0.1
+                    unitLabel: CPU
                   path: spec.components.dataNode.resources.limits.cpu
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 memory:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 4
                     label: RAM
-                    step: 0.1
+                    unit: Gi
                   path: spec.components.dataNode.resources.limits.memory
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.5
               groupType: line
@@ -7440,20 +7436,18 @@ spec:
                           fieldParams:
                             defaultValue: 0.2
                             label: CPU
-                            step: 0.1
+                            unitLabel: CPU
                           path: spec.topology.parameters.dependencies.pulsar.bookkeeper.resources.requests.cpu
-                          uiType: number
+                          uiType: quantity
                           validation:
                             min: 0.1
                         memory:
                           fieldParams:
-                            badge: Gi
-                            badgeToApi: true
                             defaultValue: 0.5
                             label: RAM
-                            step: 0.1
+                            unit: Gi
                           path: spec.topology.parameters.dependencies.pulsar.bookkeeper.resources.requests.memory
-                          uiType: number
+                          uiType: quantity
                           validation:
                             min: 0.1
                       groupType: line
@@ -7462,26 +7456,32 @@ spec:
                       components:
                         journal:
                           fieldParams:
-                            badge: Gi
-                            badgeToApi: true
                             defaultValue: 5
                             label: Journal
+                            unit: Gi
                           path: spec.topology.parameters.dependencies.pulsar.bookkeeper.journal.size
-                          uiType: number
+                          uiType: quantity
                           validation:
-                            int: true
                             min: 1
+                            modes:
+                              edit:
+                                celExpressions:
+                                  - celExpr: '!has(original.spec.topology.parameters.dependencies.pulsar.bookkeeper.journal.size) || !has(spec.topology.parameters.dependencies.pulsar.bookkeeper.journal.size) || double(spec.topology.parameters.dependencies.pulsar.bookkeeper.journal.size) >= double(original.spec.topology.parameters.dependencies.pulsar.bookkeeper.journal.size)'
+                                    message: Storage size cannot be decreased
                         ledgers:
                           fieldParams:
-                            badge: Gi
-                            badgeToApi: true
                             defaultValue: 10
                             label: Ledgers
+                            unit: Gi
                           path: spec.topology.parameters.dependencies.pulsar.bookkeeper.ledgers.size
-                          uiType: number
+                          uiType: quantity
                           validation:
-                            int: true
                             min: 1
+                            modes:
+                              edit:
+                                celExpressions:
+                                  - celExpr: '!has(original.spec.topology.parameters.dependencies.pulsar.bookkeeper.ledgers.size) || !has(spec.topology.parameters.dependencies.pulsar.bookkeeper.ledgers.size) || double(spec.topology.parameters.dependencies.pulsar.bookkeeper.ledgers.size) >= double(original.spec.topology.parameters.dependencies.pulsar.bookkeeper.ledgers.size)'
+                                    message: Storage size cannot be decreased
                       groupType: line
                       uiType: group
                   componentsOrder:
@@ -7511,20 +7511,18 @@ spec:
                           fieldParams:
                             defaultValue: 0.2
                             label: CPU
-                            step: 0.1
+                            unitLabel: CPU
                           path: spec.topology.parameters.dependencies.pulsar.broker.resources.requests.cpu
-                          uiType: number
+                          uiType: quantity
                           validation:
                             min: 0.1
                         memory:
                           fieldParams:
-                            badge: Gi
-                            badgeToApi: true
                             defaultValue: 0.5
                             label: RAM
-                            step: 0.1
+                            unit: Gi
                           path: spec.topology.parameters.dependencies.pulsar.broker.resources.requests.memory
-                          uiType: number
+                          uiType: quantity
                           validation:
                             min: 0.1
                       groupType: line
@@ -7555,20 +7553,18 @@ spec:
                           fieldParams:
                             defaultValue: 0.1
                             label: CPU
-                            step: 0.1
+                            unitLabel: CPU
                           path: spec.topology.parameters.dependencies.pulsar.proxy.resources.requests.cpu
-                          uiType: number
+                          uiType: quantity
                           validation:
                             min: 0.1
                         memory:
                           fieldParams:
-                            badge: Gi
-                            badgeToApi: true
                             defaultValue: 0.25
                             label: RAM
-                            step: 0.1
+                            unit: Gi
                           path: spec.topology.parameters.dependencies.pulsar.proxy.resources.requests.memory
-                          uiType: number
+                          uiType: quantity
                           validation:
                             min: 0.1
                       groupType: line
@@ -7614,20 +7610,18 @@ spec:
                           fieldParams:
                             defaultValue: 0.1
                             label: CPU
-                            step: 0.1
+                            unitLabel: CPU
                           path: spec.topology.parameters.dependencies.pulsar.zookeeper.resources.requests.cpu
-                          uiType: number
+                          uiType: quantity
                           validation:
                             min: 0.1
                         memory:
                           fieldParams:
-                            badge: Gi
-                            badgeToApi: true
                             defaultValue: 0.25
                             label: RAM
-                            step: 0.1
+                            unit: Gi
                           path: spec.topology.parameters.dependencies.pulsar.zookeeper.resources.requests.memory
-                          uiType: number
+                          uiType: quantity
                           validation:
                             min: 0.1
                       groupType: line
@@ -7636,15 +7630,18 @@ spec:
                       components:
                         data:
                           fieldParams:
-                            badge: Gi
-                            badgeToApi: true
                             defaultValue: 5
                             label: Data
+                            unit: Gi
                           path: spec.topology.parameters.dependencies.pulsar.zookeeper.data.size
-                          uiType: number
+                          uiType: quantity
                           validation:
-                            int: true
                             min: 1
+                            modes:
+                              edit:
+                                celExpressions:
+                                  - celExpr: '!has(original.spec.topology.parameters.dependencies.pulsar.zookeeper.data.size) || !has(spec.topology.parameters.dependencies.pulsar.zookeeper.data.size) || double(spec.topology.parameters.dependencies.pulsar.zookeeper.data.size) >= double(original.spec.topology.parameters.dependencies.pulsar.zookeeper.data.size)'
+                                    message: Storage size cannot be decreased
                       groupType: line
                       uiType: group
                   componentsOrder:
@@ -7680,33 +7677,34 @@ spec:
                   fieldParams:
                     defaultValue: 0.1
                     label: CPU
-                    step: 0.1
+                    unitLabel: CPU
                   path: spec.topology.parameters.dependencies.etcd.resources.requests.cpu
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 memory:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 0.25
                     label: RAM
-                    step: 0.1
+                    unit: Gi
                   path: spec.topology.parameters.dependencies.etcd.resources.requests.memory
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 storage:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 10
                     label: Storage
+                    unit: Gi
                   path: spec.topology.parameters.dependencies.etcd.persistence.size
-                  uiType: number
+                  uiType: quantity
                   validation:
-                    int: true
                     min: 1
+                    modes:
+                      edit:
+                        celExpressions:
+                          - celExpr: '!has(original.spec.topology.parameters.dependencies.etcd.persistence.size) || !has(spec.topology.parameters.dependencies.etcd.persistence.size) || double(spec.topology.parameters.dependencies.etcd.persistence.size) >= double(original.spec.topology.parameters.dependencies.etcd.persistence.size)'
+                            message: Storage size cannot be decreased
               groupType: line
               uiType: group
           componentsOrder:
@@ -7743,33 +7741,34 @@ spec:
                   fieldParams:
                     defaultValue: 0.1
                     label: CPU
-                    step: 0.1
+                    unitLabel: CPU
                   path: spec.topology.parameters.dependencies.storage.resources.requests.cpu
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 memory:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 0.25
                     label: RAM
-                    step: 0.1
+                    unit: Gi
                   path: spec.topology.parameters.dependencies.storage.resources.requests.memory
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 storage:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 10
                     label: Storage
+                    unit: Gi
                   path: spec.topology.parameters.dependencies.storage.persistence.size
-                  uiType: number
+                  uiType: quantity
                   validation:
-                    int: true
                     min: 1
+                    modes:
+                      edit:
+                        celExpressions:
+                          - celExpr: '!has(original.spec.topology.parameters.dependencies.storage.persistence.size) || !has(spec.topology.parameters.dependencies.storage.persistence.size) || double(spec.topology.parameters.dependencies.storage.persistence.size) >= double(original.spec.topology.parameters.dependencies.storage.persistence.size)'
+                            message: Storage size cannot be decreased
               groupType: line
               uiType: group
           componentsOrder:
@@ -7836,20 +7835,18 @@ spec:
                   fieldParams:
                     defaultValue: 1
                     label: CPU
-                    step: 0.1
+                    unitLabel: CPU
                   path: spec.components.proxy.resources.limits.cpu
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 memory:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 2
                     label: RAM
-                    step: 0.1
+                    unit: Gi
                   path: spec.components.proxy.resources.limits.memory
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.5
               groupType: line
@@ -7907,20 +7904,18 @@ spec:
                   fieldParams:
                     defaultValue: 1
                     label: CPU
-                    step: 0.1
+                    unitLabel: CPU
                   path: spec.components.queryNode.resources.limits.cpu
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 memory:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 4
                     label: RAM
-                    step: 0.1
+                    unit: Gi
                   path: spec.components.queryNode.resources.limits.memory
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.5
               groupType: line
@@ -7947,20 +7942,18 @@ spec:
                   fieldParams:
                     defaultValue: 1
                     label: CPU
-                    step: 0.1
+                    unitLabel: CPU
                   path: spec.components.streamingNode.resources.limits.cpu
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 memory:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 2
                     label: RAM
-                    step: 0.1
+                    unit: Gi
                   path: spec.components.streamingNode.resources.limits.memory
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.5
               groupType: line
@@ -8117,33 +8110,34 @@ spec:
                   fieldParams:
                     defaultValue: 0.1
                     label: CPU
-                    step: 0.1
+                    unitLabel: CPU
                   path: spec.topology.parameters.dependencies.etcd.resources.requests.cpu
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 memory:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 0.25
                     label: RAM
-                    step: 0.1
+                    unit: Gi
                   path: spec.topology.parameters.dependencies.etcd.resources.requests.memory
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 storage:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 10
                     label: Storage
+                    unit: Gi
                   path: spec.topology.parameters.dependencies.etcd.persistence.size
-                  uiType: number
+                  uiType: quantity
                   validation:
-                    int: true
                     min: 1
+                    modes:
+                      edit:
+                        celExpressions:
+                          - celExpr: '!has(original.spec.topology.parameters.dependencies.etcd.persistence.size) || !has(spec.topology.parameters.dependencies.etcd.persistence.size) || double(spec.topology.parameters.dependencies.etcd.persistence.size) >= double(original.spec.topology.parameters.dependencies.etcd.persistence.size)'
+                            message: Storage size cannot be decreased
               groupType: line
               uiType: group
           componentsOrder:
@@ -8180,33 +8174,34 @@ spec:
                   fieldParams:
                     defaultValue: 0.1
                     label: CPU
-                    step: 0.1
+                    unitLabel: CPU
                   path: spec.topology.parameters.dependencies.storage.resources.requests.cpu
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 memory:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 0.25
                     label: RAM
-                    step: 0.1
+                    unit: Gi
                   path: spec.topology.parameters.dependencies.storage.resources.requests.memory
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 storage:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 10
                     label: Storage
+                    unit: Gi
                   path: spec.topology.parameters.dependencies.storage.persistence.size
-                  uiType: number
+                  uiType: quantity
                   validation:
-                    int: true
                     min: 1
+                    modes:
+                      edit:
+                        celExpressions:
+                          - celExpr: '!has(original.spec.topology.parameters.dependencies.storage.persistence.size) || !has(spec.topology.parameters.dependencies.storage.persistence.size) || double(spec.topology.parameters.dependencies.storage.persistence.size) >= double(original.spec.topology.parameters.dependencies.storage.persistence.size)'
+                            message: Storage size cannot be decreased
               groupType: line
               uiType: group
           componentsOrder:
@@ -8220,9 +8215,9 @@ spec:
               fieldParams:
                 defaultValue: 1
                 label: CPU
-                step: 0.1
+                unitLabel: CPU
               path: spec.components.standalone.resources.limits.cpu
-              uiType: number
+              uiType: quantity
               validation:
                 min: 0.1
                 required: true
@@ -8241,13 +8236,11 @@ spec:
               uiType: select
             memory:
               fieldParams:
-                badge: Gi
-                badgeToApi: true
                 defaultValue: 4
                 label: Memory
-                step: 0.1
+                unit: Gi
               path: spec.components.standalone.resources.limits.memory
-              uiType: number
+              uiType: quantity
               validation:
                 min: 0.5
                 required: true
