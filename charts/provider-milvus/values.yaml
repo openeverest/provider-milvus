@@ -124,27 +124,106 @@ provider:
   # used in other contexts where a short concise provider identifier is needed.
   shortName: milvus
 
-# -- Default instance presets configuration
-# Each preset must have 'name', 'enabled', and 'spec' fields.
-# The 'spec' field contains the full InstancePresetSpec.
-# Note: The provider shortName will be automatically added to each preset name.
-presets: []
-  # Example preset structure:
-  # - name: standalone
-  #   enabled: true
-  #   spec:
-  #     provider: milvus
-  #     version: 2.6.15
-  #     topology:
-  #       type: standalone
-  #     components:
-  #       standalone:
-  #         type: milvus
-  #         replicas: 1
-  #         resources:
-  #           limits:
-  #             cpu: "1"
-  #             memory: 2Gi
+# -- ClusterInstancePresets the chart installs, one per topology, offered in
+# the UI when creating an Instance. Each has a `name` (prefixed with
+# `provider.shortName`), `enabled`, and the Instance `spec` it fills in; the
+# chart sets `providerRef`. Presets are cluster-scoped, so a spec must not
+# name a namespaced object such as a Secret or a storage location. Set
+# `enabled: false` to drop one, or override the list to ship your own.
+presets:
+  - name: standalone
+    enabled: true
+    spec:
+      version: "2.6.27"
+      topology:
+        type: standalone
+        parameters:
+          dependencies:
+            etcd:
+              replicas: 1
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+              persistence:
+                size: 10Gi
+            storage:
+              replicas: 1
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+              persistence:
+                size: 10Gi
+      components:
+        standalone:
+          type: milvus
+          replicas: 1
+          resources:
+            limits:
+              cpu: "1"
+              memory: 4Gi
+  - name: cluster
+    enabled: true
+    spec:
+      version: "2.6.27"
+      topology:
+        type: cluster
+        parameters:
+          dependencies:
+            messageStreamType: woodpecker
+            etcd:
+              replicas: 3
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+              persistence:
+                size: 10Gi
+            storage:
+              replicas: 1
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+              persistence:
+                size: 10Gi
+      components:
+        proxy:
+          type: milvus
+          replicas: 1
+          resources:
+            limits:
+              cpu: "1"
+              memory: 2Gi
+        mixCoord:
+          type: milvus
+          replicas: 1
+          resources:
+            limits:
+              cpu: "1"
+              memory: 2Gi
+        dataNode:
+          type: milvus
+          replicas: 1
+          resources:
+            limits:
+              cpu: "1"
+              memory: 4Gi
+        queryNode:
+          type: milvus
+          replicas: 1
+          resources:
+            limits:
+              cpu: "1"
+              memory: 4Gi
+        streamingNode:
+          type: milvus
+          replicas: 1
+          resources:
+            limits:
+              cpu: "1"
+              memory: 2Gi
 
 # -- Additional environment variables to set on the provider container
 extraEnv: []

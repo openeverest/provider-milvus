@@ -156,6 +156,10 @@ test-integration-core: ## Run core integration tests.
 test-integration-scaling: ## Run scaling integration tests.
 	. ./test/vars.sh && chainsaw test --config ./test/integration/.chainsaw.yaml ./test/integration/scaling
 
+.PHONY: test-integration-presets
+test-integration-presets: ## Run ClusterInstancePreset integration tests.
+	. ./test/vars.sh && chainsaw test --config ./test/integration/.chainsaw.yaml ./test/integration/presets
+
 .PHONY: test-integration-features
 test-integration-features: ## Run feature translation integration tests.
 	. ./test/vars.sh && chainsaw test --config ./test/integration/.chainsaw.yaml ./test/integration/features

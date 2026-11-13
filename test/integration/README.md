@@ -9,7 +9,9 @@ The `core/` suite runs a standalone `Instance` through its lifecycle: create,
 authentication, readiness, admission refusing an invalid Instance and a
 storage shrink, dependency health, NodePort and LoadBalancer
 exposure, a pod scheduling policy update, and delete. `scaling/` scales a
-cluster out and toggles autoscaling. `features/` checks what the provider
+cluster out and toggles autoscaling. `presets/` admits an Instance from each
+ClusterInstancePreset the chart ships and brings one up from the standalone
+preset. `features/` checks what the provider
 writes onto the Milvus CR for engine configuration, pod customization,
 deployment groups, probe tuning, Prometheus monitoring, version upgrade and
 downgrade rejection, external etcd/object storage, Pulsar, a storage location

@@ -631,6 +631,25 @@ Worth knowing:
   YAML (e.g. `log.level`), merged into the Milvus configuration.
 - **Coordinator HA** — more than one `mixCoord` replica runs active-standby.
 
+### Presets
+
+The chart installs a cluster-wide `ClusterInstancePreset` per topology, which the
+UI offers when you create an Instance; an Instance created from one carries the
+`openeverest.io/cluster-instance-preset` annotation. Both are on the default
+version bundle with the UI's default sizing:
+
+| Preset | Topology | Milvus | Dependencies |
+|---|---|---|---|
+| `milvus-standalone` | `standalone` | 1 CPU, 4Gi | etcd and MinIO: 1 replica, 100m CPU, 256Mi, 10Gi each |
+| `milvus-cluster` | `cluster` | proxy, mixCoord and streaming node 1 CPU, 2Gi; data and query node 1 CPU, 4Gi; one replica each | Woodpecker; etcd: 3 replicas, MinIO: 1 replica, each 100m CPU, 256Mi, 10Gi |
+
+Change them under `presets` in the chart values: set `enabled: false` on one to
+drop it, or replace the list with your own. Each entry has a `name` (prefixed
+with `provider.shortName`) and the Instance `spec` it fills in; the chart sets
+`providerRef`. Presets are cluster-scoped, so their spec must not name a
+namespaced object such as a Secret or a storage location. Namespaced
+`InstancePreset`s are yours to create; the chart ships none.
+
 ## Development
 
 Requires Go (see [go.mod](go.mod)), Docker, Helm, kubectl, and a Kubernetes cluster you can
@@ -675,6 +694,7 @@ code generation, and the backup/restore interfaces are documented once for all p
 - **Integration tests** — chainsaw suites under `test/integration/`, run with the operator
   scaled to 0. The `core/` suite covers create, authentication, admission, dependency health,
   exposure, scheduling and delete; `scaling/` covers scale-out and autoscaling;
+  `presets/` covers the ClusterInstancePresets the chart ships;
   `features/` covers engine configuration, pod customization, deployment groups, probes,
   monitoring, upgrade and downgrade rejection, external dependencies, Pulsar, a storage
   location and TLS (generated, user and cert-manager certificates).
