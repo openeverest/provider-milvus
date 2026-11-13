@@ -36,24 +36,22 @@ ui:
       description: Configure the core resources for the deployment.
       components:
         cpu:
-          uiType: number
+          uiType: quantity
           path: spec.components.standalone.resources.limits.cpu
           fieldParams:
             label: CPU
+            unitLabel: "CPU"
             defaultValue: 1
-            step: 0.1
           validation:
             min: 0.1
             required: true
         memory:
-          uiType: number
+          uiType: quantity
           path: spec.components.standalone.resources.limits.memory
           fieldParams:
             label: Memory
+            unit: "Gi"
             defaultValue: 4
-            step: 0.1
-            badge: Gi
-            badgeToApi: true
           validation:
             min: 0.5
             required: true
@@ -99,35 +97,38 @@ ui:
           components:
             cpu:
               path: spec.topology.parameters.dependencies.storage.resources.requests.cpu
-              uiType: number
+              uiType: quantity
               fieldParams:
                 label: CPU
+                unitLabel: "CPU"
                 defaultValue: 0.1
-                step: 0.1
               validation:
                 min: 0.1
             memory:
               path: spec.topology.parameters.dependencies.storage.resources.requests.memory
-              uiType: number
+              uiType: quantity
               fieldParams:
                 label: RAM
+                unit: "Gi"
                 defaultValue: 0.25
-                step: 0.1
-                badge: Gi
-                badgeToApi: true
               validation:
                 min: 0.1
             storage:
               path: spec.topology.parameters.dependencies.storage.persistence.size
-              uiType: number
+              uiType: quantity
               fieldParams:
                 label: Storage
+                unit: "Gi"
                 defaultValue: 10
-                badge: Gi
-                badgeToApi: true
               validation:
                 min: 1
-                int: true
+                modes:
+                  edit:
+                    celExpressions:
+                      # A volume cannot shrink. double() holds for a number or a string,
+                      # and has() for an instance that does not set the size.
+                      - celExpr: "!has(original.spec.topology.parameters.dependencies.storage.persistence.size) || !has(spec.topology.parameters.dependencies.storage.persistence.size) || double(spec.topology.parameters.dependencies.storage.persistence.size) >= double(original.spec.topology.parameters.dependencies.storage.persistence.size)"
+                        message: "Storage size cannot be decreased"
       componentsOrder:
         - storageLocation
         - replicas
@@ -151,35 +152,38 @@ ui:
           components:
             cpu:
               path: spec.topology.parameters.dependencies.etcd.resources.requests.cpu
-              uiType: number
+              uiType: quantity
               fieldParams:
                 label: CPU
+                unitLabel: "CPU"
                 defaultValue: 0.1
-                step: 0.1
               validation:
                 min: 0.1
             memory:
               path: spec.topology.parameters.dependencies.etcd.resources.requests.memory
-              uiType: number
+              uiType: quantity
               fieldParams:
                 label: RAM
+                unit: "Gi"
                 defaultValue: 0.25
-                step: 0.1
-                badge: Gi
-                badgeToApi: true
               validation:
                 min: 0.1
             storage:
               path: spec.topology.parameters.dependencies.etcd.persistence.size
-              uiType: number
+              uiType: quantity
               fieldParams:
                 label: Storage
+                unit: "Gi"
                 defaultValue: 10
-                badge: Gi
-                badgeToApi: true
               validation:
                 min: 1
-                int: true
+                modes:
+                  edit:
+                    celExpressions:
+                      # A volume cannot shrink. double() holds for a number or a string,
+                      # and has() for an instance that does not set the size.
+                      - celExpr: "!has(original.spec.topology.parameters.dependencies.etcd.persistence.size) || !has(spec.topology.parameters.dependencies.etcd.persistence.size) || double(spec.topology.parameters.dependencies.etcd.persistence.size) >= double(original.spec.topology.parameters.dependencies.etcd.persistence.size)"
+                        message: "Storage size cannot be decreased"
       componentsOrder:
         - replicas
         - resources
