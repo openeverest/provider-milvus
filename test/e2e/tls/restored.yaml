@@ -1,0 +1,36 @@
+# A TLS instance seeded from the TLS instance's backup.
+apiVersion: core.openeverest.io/v1alpha1
+kind: Instance
+metadata:
+  name: tls-restored
+spec:
+  providerRef:
+    name: milvus
+  topology:
+    type: standalone
+  parameters:
+    tls:
+      mode: requireTLS
+  components:
+    standalone:
+      type: milvus
+      replicas: 1
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: "1"
+          memory: 2Gi
+  backup:
+    enabled: true
+    classRef:
+      name: milvus-backup
+    storages:
+      - storageRef:
+          name: backup-s3
+  dataSource:
+    type: Backup
+    backup:
+      backupRef:
+        name: tls-standalone-backup

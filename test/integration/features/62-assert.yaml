@@ -1,0 +1,15 @@
+# Expected outcome of turning TLS off: Milvus serves plain text again, with
+# REST back on the gRPC port.
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: secure
+spec:
+  config:
+    (tls == null): true
+    (common.security.tlsMode == null): true
+    (proxy == null): true
+  components:
+    proxy:
+      (serviceRestfulPort == null): true
+      (volumes == null): true

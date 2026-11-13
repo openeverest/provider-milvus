@@ -204,7 +204,7 @@ type fakeLoadedReplicas struct {
 	calls    int
 }
 
-func (f *fakeLoadedReplicas) LoadedReplicas(context.Context, string, string) (map[string]int32, error) {
+func (f *fakeLoadedReplicas) LoadedReplicas(context.Context, milvusEndpoint, string) (map[string]int32, error) {
 	f.calls++
 	return f.replicas, f.err
 }

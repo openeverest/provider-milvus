@@ -47,6 +47,10 @@ func New() *Provider {
 			WatchConfigs: []controller.WatchConfig{
 				controller.WatchOwned(&milvusapi.Milvus{}),
 				controller.WatchOwned(&corev1.Secret{}, credentialsSecretChanged()),
+				// Certificate Secrets of the user or cert-manager: a renewal
+				// rolls the pods serving clients.
+				controller.WatchExternal(&corev1.Secret{},
+					handler.EnqueueRequestsFromMapFunc(enqueueTLSSecretInstances), tlsSecretChanged()),
 				// Standalone Restores are not owned by the Instance they target.
 				controller.WatchExternal(&backupv1alpha1.Restore{},
 					handler.EnqueueRequestsFromMapFunc(enqueueRestoreInstance)),
@@ -369,6 +373,11 @@ func (p *Provider) Sync(c *controller.Context) error {
 		return err
 	}
 	applyAuthConfig(&spec, credentialsSecretName(c.Name()))
+	tls, err := syncTLS(c)
+	if err != nil {
+		return err
+	}
+	applyTLS(&spec, tls)
 	if err := applyStorageCredentials(c, &spec); err != nil {
 		return err
 	}
@@ -440,19 +449,12 @@ func (p *Provider) Status(c *controller.Context) (controller.Status, error) {
 		}
 		// Clients keep the working password until a rotation lands.
 		password := creds.appliedPassword
-
-		details := controller.ConnectionDetails{
-			Type:     "milvus",
-			Provider: common.ProviderName,
-			Host:     host,
-			Port:     port,
-			Username: rootUsername,
-			Password: password,
-			URI:      fmt.Sprintf("http://%s:%s", host, port),
-			AdditionalProperties: map[string]string{
-				"token": fmt.Sprintf("%s:%s", rootUsername, password),
-			},
+		tls, err := currentTLS(c)
+		if err != nil {
+			return controller.Status{}, err
 		}
+
+		details := connectionDetails(host, port, password, tls)
 		// Milvus keeps serving during a rollout, so the connection stays published.
 		if message, rolling := rolloutMessage(cr); rolling {
 			status := controller.Updating(message)
@@ -486,6 +488,32 @@ func (p *Provider) Status(c *controller.Context) (controller.Status, error) {
 	default:
 		return controller.Provisioning("Milvus is initializing"), nil
 	}
+}
+
+// connectionDetails publishes the client endpoint; under TLS the URI is
+// https and ca.crt carries the CA that verifies the instance, unless a public
+// CA signed its certificate.
+func connectionDetails(host, port, password string, tls tlsState) controller.ConnectionDetails {
+	scheme := "http"
+	if tls.enabled {
+		scheme = "https"
+	}
+	details := controller.ConnectionDetails{
+		Type:     "milvus",
+		Provider: common.ProviderName,
+		Host:     host,
+		Port:     port,
+		Username: rootUsername,
+		Password: password,
+		URI:      fmt.Sprintf("%s://%s:%s", scheme, host, port),
+		AdditionalProperties: map[string]string{
+			"token": fmt.Sprintf("%s:%s", rootUsername, password),
+		},
+	}
+	if len(tls.ca) > 0 {
+		details.AdditionalProperties[tlsKeyCA] = string(tls.ca)
+	}
+	return details
 }
 
 // notReadyConditions are checked in dependency order, so the root cause wins

@@ -1,0 +1,32 @@
+# Cluster Instance serving clients over TLS with a certificate the provider
+# issues from a CA of the instance's own.
+apiVersion: core.openeverest.io/v1alpha1
+kind: Instance
+metadata:
+  name: secure
+spec:
+  providerRef:
+    name: milvus
+  topology:
+    type: cluster
+  parameters:
+    tls:
+      mode: requireTLS
+      additionalNames:
+        - milvus.example.com
+  components:
+    proxy:
+      type: milvus
+      replicas: 1
+    mixCoord:
+      type: milvus
+      replicas: 1
+    dataNode:
+      type: milvus
+      replicas: 1
+    queryNode:
+      type: milvus
+      replicas: 1
+    streamingNode:
+      type: milvus
+      replicas: 1

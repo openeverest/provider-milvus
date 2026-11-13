@@ -3,12 +3,20 @@
 MODE=full (default) writes, searches and drops a collection.
 MODE=write leaves the collection behind; MODE=verify checks it is still there
 and searchable, then drops it. Run write and verify around an upgrade or
-restart to prove data survives it. Exits non-zero on any failure.
+restart to prove data survives it. MODE=rejected passes only when the
+connection fails, e.g. a plain-text client against a TLS instance.
+
+MILVUS_CA, when set, is the CA that verifies a TLS instance (the connection
+Secret's ca.crt). MILVUS_REST_URL, when set, is checked over REST as well.
+Exits non-zero on any failure.
 """
 
+import json
 import os
 import random
+import ssl
 import sys
+import urllib.request
 
 from pymilvus import DataType, MilvusClient
 from pymilvus.client.types import LoadState
@@ -50,10 +58,53 @@ def verify(client: MilvusClient) -> bool:
     return top == PROBE_ID and count == ROWS
 
 
+def ca_path() -> str | None:
+    ca = os.environ.get("MILVUS_CA", "")
+    if not ca:
+        return None
+    path = "/tmp/milvus-ca.crt"
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(ca)
+    return path
+
+
+def connect(tls: bool = True) -> MilvusClient:
+    kwargs = {}
+    if tls and (ca := ca_path()):
+        kwargs["server_pem_path"] = ca
+    return MilvusClient(uri=os.environ["MILVUS_URI"], token=os.environ["MILVUS_TOKEN"], timeout=20, **kwargs)
+
+
+def check_rest(url: str) -> None:
+    context = ssl.create_default_context(cafile=ca_path())
+    request = urllib.request.Request(
+        url + "/v2/vectordb/collections/list",
+        data=b"{}",
+        headers={"Content-Type": "application/json", "Authorization": "Bearer " + os.environ["MILVUS_TOKEN"]},
+    )
+    with urllib.request.urlopen(request, context=context, timeout=20) as response:
+        body = json.load(response)
+    if body.get("code") != 0:
+        raise RuntimeError(f"REST call failed: {body}")
+    print("rest: ok")
+
+
 def main() -> int:
     mode = os.environ.get("MODE", "full")
-    client = MilvusClient(uri=os.environ["MILVUS_URI"], token=os.environ["MILVUS_TOKEN"])
+    if mode == "rejected":
+        try:
+            connect(tls=False).get_server_version()
+        except Exception as e:  # noqa: BLE001 - any failure to connect is the expected outcome
+            print(f"rejected as expected: {type(e).__name__}")
+            print("PASS")
+            return 0
+        print("FAIL: the connection was accepted")
+        return 1
+
+    client = connect()
     print("server version:", client.get_server_version())
+    if url := os.environ.get("MILVUS_REST_URL"):
+        check_rest(url)
 
     if mode in ("full", "write"):
         write(client)

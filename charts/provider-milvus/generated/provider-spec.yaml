@@ -3103,6 +3103,28 @@ spec:
           type: object
       type: milvus
   defaultVersion: 2.6.27
+  parametersSchema:
+    openAPIV3Schema:
+      properties:
+        tls:
+          properties:
+            additionalNames:
+              items:
+                type: string
+              type: array
+            certificateSecretName:
+              type: string
+            issuer:
+              properties:
+                kind:
+                  type: string
+                name:
+                  type: string
+              type: object
+            mode:
+              type: string
+          type: object
+      type: object
   release:
     version: 0.1.0
   topologies:
@@ -4227,6 +4249,67 @@ spec:
             - resources
           description: Configure the streaming nodes.
           label: Streaming nodes
+        tls:
+          components:
+            certificates:
+              components:
+                certificateSecretName:
+                  fieldParams:
+                    helperText: Secret with tls.crt, tls.key and ca.crt; it must cover <instance>-milvus.<namespace>.svc
+                    label: Certificate secret
+                  path: spec.parameters.tls.certificateSecretName
+                  uiType: text
+                  validation:
+                    celExpressions:
+                      - celExpr: '!has(spec.parameters.tls.certificateSecretName) || spec.parameters.tls.certificateSecretName == '''' || !has(spec.parameters.tls.issuer.name) || spec.parameters.tls.issuer.name == '''''
+                        message: Use either a certificate secret or an issuer, not both
+                issuer:
+                  components:
+                    issuerKind:
+                      fieldParams:
+                        defaultValue: Issuer
+                        label: Issuer kind
+                        options:
+                          - label: Issuer
+                            value: Issuer
+                          - label: ClusterIssuer
+                            value: ClusterIssuer
+                      path: spec.parameters.tls.issuer.kind
+                      uiType: select
+                    issuerName:
+                      fieldParams:
+                        helperText: Issuer that signs the certificate
+                        label: cert-manager issuer
+                      path: spec.parameters.tls.issuer.name
+                      uiType: text
+                  componentsOrder:
+                    - issuerName
+                    - issuerKind
+                  groupType: line
+                  uiType: group
+              componentsOrder:
+                - certificateSecretName
+                - issuer
+              description: Leave empty to have a certificate issued by a CA created for the instance. Clients find the CA in the connection secret as ca.crt.
+              groupType: bordered
+              label: Certificate
+              uiType: group
+            mode:
+              fieldParams:
+                defaultValue: disabled
+                label: TLS mode
+                options:
+                  - label: 'Disabled: clients connect in plain text'
+                    value: disabled
+                  - label: 'Required: clients must use TLS'
+                    value: requireTLS
+              path: spec.parameters.tls.mode
+              uiType: select
+          componentsOrder:
+            - mode
+            - certificates
+          description: Encrypt connections between clients and Milvus.
+          label: TLS
       sectionsOrder:
         - basicInfo
         - dataNodes
@@ -4238,6 +4321,7 @@ spec:
         - metadataStore
         - messageStream
         - monitoring
+        - tls
         - advanced
     standalone:
       sections:
@@ -4458,12 +4542,74 @@ spec:
                 required: true
           description: Configure the core resources for the deployment.
           label: Resources
+        tls:
+          components:
+            certificates:
+              components:
+                certificateSecretName:
+                  fieldParams:
+                    helperText: Secret with tls.crt, tls.key and ca.crt; it must cover <instance>-milvus.<namespace>.svc
+                    label: Certificate secret
+                  path: spec.parameters.tls.certificateSecretName
+                  uiType: text
+                  validation:
+                    celExpressions:
+                      - celExpr: '!has(spec.parameters.tls.certificateSecretName) || spec.parameters.tls.certificateSecretName == '''' || !has(spec.parameters.tls.issuer.name) || spec.parameters.tls.issuer.name == '''''
+                        message: Use either a certificate secret or an issuer, not both
+                issuer:
+                  components:
+                    issuerKind:
+                      fieldParams:
+                        defaultValue: Issuer
+                        label: Issuer kind
+                        options:
+                          - label: Issuer
+                            value: Issuer
+                          - label: ClusterIssuer
+                            value: ClusterIssuer
+                      path: spec.parameters.tls.issuer.kind
+                      uiType: select
+                    issuerName:
+                      fieldParams:
+                        helperText: Issuer that signs the certificate
+                        label: cert-manager issuer
+                      path: spec.parameters.tls.issuer.name
+                      uiType: text
+                  componentsOrder:
+                    - issuerName
+                    - issuerKind
+                  groupType: line
+                  uiType: group
+              componentsOrder:
+                - certificateSecretName
+                - issuer
+              description: Leave empty to have a certificate issued by a CA created for the instance. Clients find the CA in the connection secret as ca.crt.
+              groupType: bordered
+              label: Certificate
+              uiType: group
+            mode:
+              fieldParams:
+                defaultValue: disabled
+                label: TLS mode
+                options:
+                  - label: 'Disabled: clients connect in plain text'
+                    value: disabled
+                  - label: 'Required: clients must use TLS'
+                    value: requireTLS
+              path: spec.parameters.tls.mode
+              uiType: select
+          componentsOrder:
+            - mode
+            - certificates
+          description: Encrypt connections between clients and Milvus.
+          label: TLS
       sectionsOrder:
         - basicInfo
         - resources
         - objectStorage
         - metadataStore
         - monitoring
+        - tls
         - advanced
   versions:
     - components:

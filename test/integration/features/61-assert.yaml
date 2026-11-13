@@ -1,0 +1,22 @@
+# Expected outcome of switching to the user's certificate: it is mounted
+# instead, and labelled so that its renewals reach the instance.
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: secure
+spec:
+  components:
+    proxy:
+      volumes:
+        - name: milvus-tls
+          secret:
+            secretName: secure-corp-tls
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secure-corp-tls
+  labels:
+    tls.milvus.openeverest.io/watched: "true"
+  annotations:
+    tls.milvus.openeverest.io/instances: secure

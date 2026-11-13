@@ -112,7 +112,12 @@ type backupJobSpec struct {
 	env       []corev1.EnvVar
 	saName    string
 	namespace string
+	// tlsCASecret holds the ca.crt that verifies the instance under TLS.
+	tlsCASecret string
 }
+
+// backupTLSMountPath holds the instance's CA in milvus-backup Jobs.
+const backupTLSMountPath = "/etc/milvus-backup/tls"
 
 func secretEnv(name, secret, key string) corev1.EnvVar {
 	return corev1.EnvVar{
@@ -209,6 +214,26 @@ func backupJobLabels(instance string, op backupOperation) map[string]string {
 // backupJobTemplate is the Job spec of every milvus-backup run, on demand or
 // scheduled; configName is the ConfigMap holding its config file.
 func backupJobTemplate(spec backupJobSpec, configName string, labels map[string]string) batchv1.JobSpec {
+	env := spec.env
+	mounts := []corev1.VolumeMount{
+		{Name: "config", MountPath: "/etc/milvus-backup", ReadOnly: true},
+		{Name: "tmp", MountPath: "/tmp"},
+	}
+	volumes := []corev1.Volume{
+		{Name: "config", VolumeSource: corev1.VolumeSource{ConfigMap: &corev1.ConfigMapVolumeSource{
+			LocalObjectReference: corev1.LocalObjectReference{Name: configName},
+		}}},
+		{Name: "tmp", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+	}
+	if spec.tlsCASecret != "" {
+		mounts = append(mounts, corev1.VolumeMount{Name: "tls-ca", MountPath: backupTLSMountPath, ReadOnly: true})
+		volumes = append(volumes, corev1.Volume{Name: "tls-ca", VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{
+			SecretName: spec.tlsCASecret,
+			Items:      []corev1.KeyToPath{{Key: tlsKeyCA, Path: tlsKeyCA}},
+		}}})
+		// Go adds the certificates in these directories to the system roots.
+		env = append(append([]corev1.EnvVar{}, env...), corev1.EnvVar{Name: "SSL_CERT_DIR", Value: "/etc/ssl/certs:" + backupTLSMountPath})
+	}
 	return batchv1.JobSpec{
 		// A retried create would collide with the half-written backup.
 		BackoffLimit: ptr.To(int32(0)),
@@ -229,7 +254,7 @@ func backupJobTemplate(spec backupJobSpec, configName string, labels map[string]
 					Image:                    backupJobImage(),
 					Command:                  []string{"/app/milvus-backup"},
 					Args:                     append(append([]string{}, spec.args...), "--config", "/etc/milvus-backup/backup.yaml"),
-					Env:                      spec.env,
+					Env:                      env,
 					Resources:                backupJobResources(),
 					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 					SecurityContext: &corev1.SecurityContext{
@@ -237,17 +262,9 @@ func backupJobTemplate(spec backupJobSpec, configName string, labels map[string]
 						ReadOnlyRootFilesystem:   ptr.To(true),
 						Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
 					},
-					VolumeMounts: []corev1.VolumeMount{
-						{Name: "config", MountPath: "/etc/milvus-backup", ReadOnly: true},
-						{Name: "tmp", MountPath: "/tmp"},
-					},
+					VolumeMounts: mounts,
 				}},
-				Volumes: []corev1.Volume{
-					{Name: "config", VolumeSource: corev1.VolumeSource{ConfigMap: &corev1.ConfigMapVolumeSource{
-						LocalObjectReference: corev1.LocalObjectReference{Name: configName},
-					}}},
-					{Name: "tmp", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-				},
+				Volumes: volumes,
 			},
 		},
 	}

@@ -4,6 +4,8 @@
 #   upgrade, backup and restore, scaling and autoscaling.
 # - versions (test/e2e/run-versions.sh): every shipped version bundle deploys,
 #   serves data and upgrades to the newest bundle.
+# - tls (test/e2e/run-tls.sh): clients, backup, restore and password rotation
+#   over TLS with generated, user and cert-manager certificates.
 # Each takes about 30 minutes, so they run nightly, on demand, and on pull
 # requests labelled "e2e" instead of on every change.
 name: E2E
@@ -40,6 +42,8 @@ jobs:
             target: test-e2e-live
           - suite: versions
             target: test-e2e-versions
+          - suite: tls
+            target: test-e2e-tls
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 

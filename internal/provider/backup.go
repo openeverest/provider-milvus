@@ -153,7 +153,11 @@ func operationJobSpec(c *controller.Context, cr *milvusapi.Milvus, location back
 	if err != nil {
 		return backupJobSpec{}, err
 	}
-	config, err := milvusBackupConfig(c.Name(), c.Namespace(), milvusStore, backupStore)
+	tls, err := currentTLS(c)
+	if err != nil {
+		return backupJobSpec{}, err
+	}
+	config, err := milvusBackupConfig(c.Name(), c.Namespace(), milvusStore, backupStore, tls)
 	if err != nil {
 		return backupJobSpec{}, err
 	}
@@ -163,6 +167,9 @@ func operationJobSpec(c *controller.Context, cr *milvusapi.Milvus, location back
 		namespace: c.Namespace(),
 		config:    config,
 		env:       append(milvusEnv(c.Name(), milvusStorageSecret(cr, milvusStore)), backupStorageEnv(location.storage)...),
+	}
+	if len(tls.ca) > 0 {
+		spec.tlsCASecret = tls.secretName
 	}
 	if milvusStore.UseIAM {
 		spec.saName = cr.Spec.Com.ServiceAccountName
@@ -211,7 +218,7 @@ func (p *Provider) CleanupBackup(c *controller.Context, backup *backupv1alpha1.B
 			return true, nil
 		}
 		// delete never contacts Milvus; its storage section only needs to be valid.
-		config, err := milvusBackupConfig(c.Name(), backup.Namespace, backupStore, backupStore)
+		config, err := milvusBackupConfig(c.Name(), backup.Namespace, backupStore, backupStore, tlsState{})
 		if err != nil {
 			return false, err
 		}

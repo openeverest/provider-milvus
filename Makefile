@@ -169,6 +169,10 @@ test-e2e-live: ## Create, smoke-test, back up, restore, upgrade, scale and delet
 test-e2e-versions: ## Deploy, smoke-test and upgrade every version bundle the installed Provider offers on the current cluster.
 	./test/e2e/run-versions.sh $(E2E_NAMESPACE)
 
+.PHONY: test-e2e-tls
+test-e2e-tls: ## Serve real Milvus instances over TLS (generated, user and cert-manager certificates) on the current cluster.
+	./test/e2e/run-tls.sh $(E2E_NAMESPACE)
+
 .PHONY: load-image
 load-image: ## Import the provider image (IMG) into the k3d cluster.
 	k3d image import ${IMG} -c ${K3D_CLUSTER_NAME}

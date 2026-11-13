@@ -1,0 +1,27 @@
+# Standalone Instance whose certificate cert-manager issues. CI clusters have
+# cert-manager (installed with the OpenEverest test controller).
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: selfsigned
+spec:
+  selfSigned: {}
+---
+apiVersion: core.openeverest.io/v1alpha1
+kind: Instance
+metadata:
+  name: issued
+spec:
+  providerRef:
+    name: milvus
+  topology:
+    type: standalone
+  parameters:
+    tls:
+      mode: requireTLS
+      issuer:
+        name: selfsigned
+  components:
+    standalone:
+      type: milvus
+      replicas: 1
