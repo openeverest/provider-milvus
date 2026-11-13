@@ -11,7 +11,9 @@ type ClusterTopologyParameters struct {
 	// Dependencies configures the operator-managed dependencies (etcd, Pulsar,
 	// MinIO) for the cluster deployment.
 	Dependencies *ClusterDependencies `json:"dependencies,omitempty"`
-	// Monitoring configures metrics collection.
+	// Deprecated: Monitoring has no effect. It is accepted so Instances
+	// written by earlier releases stay valid; spec.monitoring configures
+	// where metrics go.
 	Monitoring *monitoring.Monitoring `json:"monitoring,omitempty"`
 }
 

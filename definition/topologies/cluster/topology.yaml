@@ -738,18 +738,6 @@ ui:
         - bookkeeper
         - zookeeper
         - proxy
-    monitoring:
-      label: "Monitoring"
-      description: "Collect Milvus metrics with Prometheus."
-      components:
-        prometheus:
-          uiType: toggle
-          path: spec.topology.parameters.monitoring.prometheus.enabled
-          fieldParams:
-            label: "Prometheus"
-            helperText: "Creates a PodMonitor that scrapes every Milvus component. Requires the Prometheus Operator."
-      componentsOrder:
-        - prometheus
     tls:
       label: "TLS"
       description: "Encrypt connections between clients and Milvus."
@@ -861,6 +849,5 @@ ui:
     - objectStorage
     - metadataStore
     - messageStream
-    - monitoring
     - tls
     - advanced

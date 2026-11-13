@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -40,7 +39,6 @@ func New() *Provider {
 			ProviderName: common.ProviderName,
 			SchemeFuncs: []func(*runtime.Scheme) error{
 				milvusapi.AddToScheme,
-				monitoringv1.AddToScheme,
 				batchv1.AddToScheme,
 				appsv1.AddToScheme,
 			},
@@ -281,7 +279,8 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 				Image:   images.fallback.image,
 				Version: images.fallback.version,
 			},
-			// The provider owns the PodMonitor (see syncPodMonitor).
+			// Monitoring extensions scrape the endpoints MonitoringSources
+			// publishes; the operator's own PodMonitor would scrape them twice.
 			DisableMetric: true,
 		},
 	}
@@ -388,7 +387,7 @@ func (p *Provider) Sync(c *controller.Context) error {
 	if err := c.Apply(cr); err != nil {
 		return err
 	}
-	if err := syncPodMonitor(c); err != nil {
+	if err := deleteLegacyPodMonitor(c); err != nil {
 		return err
 	}
 	if err := syncDataSource(c); err != nil {
@@ -549,5 +548,5 @@ func rolloutMessage(cr *milvusapi.Milvus) (string, bool) {
 func (p *Provider) Cleanup(c *controller.Context) error {
 	l := log.FromContext(c.Context())
 	l.Info("Cleaning up instance", "name", c.Name())
-	return nil
+	return deleteLegacyPodMonitor(c)
 }

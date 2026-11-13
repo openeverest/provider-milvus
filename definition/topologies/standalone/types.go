@@ -12,7 +12,9 @@ type StandaloneTopologyParameters struct {
 	// for the standalone deployment. Standalone Milvus uses an embedded
 	// message stream (rocksmq), so Pulsar is not configurable here.
 	Dependencies *StandaloneDependencies `json:"dependencies,omitempty"`
-	// Monitoring configures metrics collection.
+	// Deprecated: Monitoring has no effect. It is accepted so Instances
+	// written by earlier releases stay valid; spec.monitoring configures
+	// where metrics go.
 	Monitoring *monitoring.Monitoring `json:"monitoring,omitempty"`
 }
 

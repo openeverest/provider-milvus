@@ -4,6 +4,7 @@ spec:
   componentTypes:
     milvus:
       defaultVersion: 2.6.27
+      kind: milvus
       versions:
         - image: milvusdb/milvus:v2.6.27
           version: 2.6.27
@@ -6557,6 +6558,10 @@ spec:
           type: object
       type: milvus
   defaultVersion: 2.6.27
+  monitoring:
+    componentTypes:
+      milvus:
+        metrics: Native
   parametersSchema:
     openAPIV3Schema:
       description: |-
@@ -7021,25 +7026,27 @@ spec:
                   type: string
               type: object
             monitoring:
-              description: Monitoring configures metrics collection.
+              description: |-
+                Deprecated: Monitoring has no effect. It is accepted so Instances
+                written by earlier releases stay valid; spec.monitoring configures
+                where metrics go.
               properties:
                 prometheus:
-                  description: Prometheus configures scraping by the Prometheus Operator.
+                  description: |-
+                    Deprecated: Prometheus has no effect. The provider publishes its
+                    metrics endpoints in status.monitoring.sources.metrics; send them to a
+                    monitoring destination listed in spec.monitoring.destinations.
                   properties:
                     enabled:
-                      description: Enabled creates the PodMonitor; disabling it removes the PodMonitor.
+                      description: 'Deprecated: Enabled has no effect.'
                       type: boolean
                     interval:
-                      description: |-
-                        Interval between scrapes, e.g. 30s. Defaults to the Prometheus global
-                        scrape interval.
+                      description: 'Deprecated: Interval has no effect.'
                       type: string
                     podMonitorLabels:
                       additionalProperties:
                         type: string
-                      description: |-
-                        PodMonitorLabels are added to the PodMonitor so that the Prometheus
-                        podMonitorSelector picks it up (e.g. release: kube-prometheus-stack).
+                      description: 'Deprecated: PodMonitorLabels has no effect.'
                       type: object
                   type: object
               type: object
@@ -7245,25 +7252,27 @@ spec:
                   type: string
               type: object
             monitoring:
-              description: Monitoring configures metrics collection.
+              description: |-
+                Deprecated: Monitoring has no effect. It is accepted so Instances
+                written by earlier releases stay valid; spec.monitoring configures
+                where metrics go.
               properties:
                 prometheus:
-                  description: Prometheus configures scraping by the Prometheus Operator.
+                  description: |-
+                    Deprecated: Prometheus has no effect. The provider publishes its
+                    metrics endpoints in status.monitoring.sources.metrics; send them to a
+                    monitoring destination listed in spec.monitoring.destinations.
                   properties:
                     enabled:
-                      description: Enabled creates the PodMonitor; disabling it removes the PodMonitor.
+                      description: 'Deprecated: Enabled has no effect.'
                       type: boolean
                     interval:
-                      description: |-
-                        Interval between scrapes, e.g. 30s. Defaults to the Prometheus global
-                        scrape interval.
+                      description: 'Deprecated: Interval has no effect.'
                       type: string
                     podMonitorLabels:
                       additionalProperties:
                         type: string
-                      description: |-
-                        PodMonitorLabels are added to the PodMonitor so that the Prometheus
-                        podMonitorSelector picks it up (e.g. release: kube-prometheus-stack).
+                      description: 'Deprecated: PodMonitorLabels has no effect.'
                       type: object
                   type: object
               type: object
@@ -7728,18 +7737,6 @@ spec:
             - resources
           description: Configure the bundled metadata store.
           label: Metadata store
-        monitoring:
-          components:
-            prometheus:
-              fieldParams:
-                helperText: Creates a PodMonitor that scrapes every Milvus component. Requires the Prometheus Operator.
-                label: Prometheus
-              path: spec.topology.parameters.monitoring.prometheus.enabled
-              uiType: toggle
-          componentsOrder:
-            - prometheus
-          description: Collect Milvus metrics with Prometheus.
-          label: Monitoring
         objectStorage:
           components:
             replicas:
@@ -8061,7 +8058,6 @@ spec:
         - objectStorage
         - metadataStore
         - messageStream
-        - monitoring
         - tls
         - advanced
     standalone:
@@ -8172,18 +8168,6 @@ spec:
             - resources
           description: Configure the bundled metadata store.
           label: Metadata store
-        monitoring:
-          components:
-            prometheus:
-              fieldParams:
-                helperText: Creates a PodMonitor that scrapes Milvus metrics. Requires the Prometheus Operator.
-                label: Prometheus
-              path: spec.topology.parameters.monitoring.prometheus.enabled
-              uiType: toggle
-          componentsOrder:
-            - prometheus
-          description: Collect Milvus metrics with Prometheus.
-          label: Monitoring
         objectStorage:
           components:
             replicas:
@@ -8350,7 +8334,6 @@ spec:
         - resources
         - objectStorage
         - metadataStore
-        - monitoring
         - tls
         - advanced
   versions:

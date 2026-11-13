@@ -11,9 +11,12 @@ storage shrink, dependency health, NodePort and LoadBalancer
 exposure, a pod scheduling policy update, and delete. `scaling/` scales a
 cluster out and toggles autoscaling. `presets/` admits an Instance from each
 ClusterInstancePreset the chart ships and brings one up from the standalone
-preset. `features/` checks what the provider
+preset. `monitoring/` binds a standalone Instance to a stand-in metrics
+class and checks the endpoints the provider publishes, the deprecated
+Prometheus parameter's warning and the removal of the PodMonitor earlier
+releases created. `features/` checks what the provider
 writes onto the Milvus CR for engine configuration, pod customization,
-deployment groups, probe tuning, Prometheus monitoring, version upgrade and
+deployment groups, probe tuning, version upgrade and
 downgrade rejection, external etcd/object storage, Pulsar, a storage location
 and TLS with generated, user and cert-manager certificates (CI clusters get
 cert-manager with the OpenEverest test controller). For more suites
