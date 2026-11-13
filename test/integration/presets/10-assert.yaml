@@ -1,0 +1,39 @@
+# The Instance created from the standalone preset carries its spec, and the
+# provider renders it onto the Milvus CR.
+apiVersion: core.openeverest.io/v1alpha1
+kind: Instance
+metadata:
+  name: from-preset
+  annotations:
+    openeverest.io/cluster-instance-preset: milvus-standalone
+spec:
+  providerRef:
+    name: milvus
+  version: "2.6.27"
+---
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: from-preset
+spec:
+  mode: standalone
+  components:
+    image: milvusdb/milvus:v2.6.27
+    standalone:
+      replicas: 1
+      resources:
+        limits:
+          cpu: "1"
+          memory: 4Gi
+  dependencies:
+    etcd:
+      inCluster:
+        values:
+          replicaCount: 1
+          persistence:
+            size: 10Gi
+    storage:
+      inCluster:
+        values:
+          persistence:
+            size: 10Gi

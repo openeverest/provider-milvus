@@ -1,0 +1,8 @@
+# Once the Milvus CR reports Healthy, the Instance created from the preset is
+# Ready.
+apiVersion: core.openeverest.io/v1alpha1
+kind: Instance
+metadata:
+  name: from-preset
+status:
+  phase: Ready
