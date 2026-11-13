@@ -630,6 +630,12 @@ Worth knowing:
 - **Engine configuration** — `parameters.configuration` on a component takes Milvus
   YAML (e.g. `log.level`), merged into the Milvus configuration.
 - **Coordinator HA** — more than one `mixCoord` replica runs active-standby.
+- **Sizing** — a Milvus component needs a limit of at least 100m CPU and 512Mi
+  memory, and a dependency volume at least 1Gi; a request above its limit is
+  rejected. The UI takes CPU in cores, fractions included (`1.5`), and memory and
+  volume sizes in Gi, and writes them as quantity strings; a value it did not
+  change keeps its stored form (for example `3584Mi`). It refuses to shrink a
+  volume.
 
 ### Presets
 
