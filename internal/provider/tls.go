@@ -19,10 +19,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	corev1alpha1 "github.com/openeverest/openeverest/v2/api/core/v1alpha1"
 	"github.com/openeverest/openeverest/v2/provider-runtime/controller"
 
 	"github.com/openeverest/provider-milvus/definition"
@@ -88,16 +90,16 @@ type tlsState struct {
 	hash string
 }
 
-func tlsParameters(c *controller.Context) *definition.TLSParameters {
+func tlsParameters(in *corev1alpha1.Instance) *definition.TLSParameters {
 	var params definition.Parameters
-	if !c.TryDecodeParameters(&params) {
+	if in.Spec.Parameters == nil || decodeRaw(in.Spec.Parameters, &params) != nil {
 		return nil
 	}
 	return params.TLS
 }
 
 func instanceTLS(c *controller.Context) tlsSpec {
-	params := tlsParameters(c)
+	params := tlsParameters(c.Instance())
 	if params == nil || params.Mode != definition.TLSModeRequire {
 		return tlsSpec{}
 	}
@@ -120,57 +122,66 @@ func instanceTLS(c *controller.Context) tlsSpec {
 	return spec
 }
 
-// validateTLS checks the TLS parameters and, for a certificate secret, that
-// it exists with a key pair.
-func validateTLS(c *controller.Context) error {
-	params := tlsParameters(c)
+// validateTLS checks the TLS parameters.
+func validateTLS(in *corev1alpha1.Instance) error {
+	params := tlsParameters(in)
 	if params == nil {
 		return nil
 	}
+	path := parametersPath.Child("tls")
 	switch params.Mode {
 	case "", definition.TLSModeDisabled, definition.TLSModeRequire:
 	default:
-		return fmt.Errorf("tls.mode %q is not supported; expected %s or %s", params.Mode, definition.TLSModeDisabled, definition.TLSModeRequire)
+		return fieldErrorf(path.Child("mode"), "tls.mode %q is not supported; expected %s or %s", params.Mode, definition.TLSModeDisabled, definition.TLSModeRequire)
 	}
 	if params.Issuer != nil {
 		switch params.Issuer.Kind {
 		case "", definition.IssuerKindIssuer, definition.IssuerKindClusterIssuer:
 		default:
-			return fmt.Errorf("tls.issuer.kind %q is not supported; expected %s or %s", params.Issuer.Kind, definition.IssuerKindIssuer, definition.IssuerKindClusterIssuer)
+			return fieldErrorf(path.Child("issuer", "kind"), "tls.issuer.kind %q is not supported; expected %s or %s", params.Issuer.Kind, definition.IssuerKindIssuer, definition.IssuerKindClusterIssuer)
 		}
 		if params.Issuer.Name == "" && params.Issuer.Kind != "" {
-			return errors.New("tls.issuer.name is required with tls.issuer.kind")
+			return field.Required(path.Child("issuer", "name"), "tls.issuer.name is required with tls.issuer.kind")
 		}
 	}
 	issuer := params.Issuer != nil && params.Issuer.Name != ""
 	if params.CertificateSecretName != "" && issuer {
-		return errors.New("tls: use either certificateSecretName or issuer, not both")
+		return field.Forbidden(path.Child("issuer"), "tls: use either certificateSecretName or issuer, not both")
 	}
 	if params.CertificateSecretName != "" && len(params.AdditionalNames) > 0 {
-		return errors.New("tls.additionalNames applies to issued certificates; a certificateSecretName certificate carries its own names")
+		return field.Forbidden(path.Child("additionalNames"), "tls.additionalNames applies to issued certificates; a certificateSecretName certificate carries its own names")
 	}
-	for _, name := range params.AdditionalNames {
+	for i, name := range params.AdditionalNames {
 		if net.ParseIP(name) != nil {
 			continue
 		}
 		if errs := validation.IsDNS1123Subdomain(strings.TrimPrefix(name, "*.")); len(errs) > 0 {
-			return fmt.Errorf("tls.additionalNames: %q is neither an IP address nor a DNS name: %s", name, strings.Join(errs, "; "))
+			return fieldErrorf(path.Child("additionalNames").Index(i), "tls.additionalNames: %q is neither an IP address nor a DNS name: %s", name, strings.Join(errs, "; "))
 		}
 	}
-	if params.Mode != definition.TLSModeRequire || params.CertificateSecretName == "" {
-		return nil
+	return nil
+}
+
+// validateTLSReferences checks that a certificate secret exists with a key
+// pair.
+func validateTLSReferences(c *controller.Context) (field.ErrorList, error) {
+	params := tlsParameters(c.Instance())
+	if params == nil || params.Mode != definition.TLSModeRequire || params.CertificateSecretName == "" {
+		return nil, nil
 	}
+	path := parametersPath.Child("tls", "certificateSecretName")
 	secret := &corev1.Secret{}
 	if err := c.Get(secret, params.CertificateSecretName); err != nil {
 		if apierrors.IsNotFound(err) {
-			return fmt.Errorf("tls: certificate secret %q not found", params.CertificateSecretName)
+			return field.ErrorList{field.NotFound(path, params.CertificateSecretName)}, nil
 		}
-		return fmt.Errorf("tls: get certificate secret %q: %w", params.CertificateSecretName, err)
+		return nil, fmt.Errorf("tls: get certificate secret %q: %w", params.CertificateSecretName, err)
 	}
 	if len(secret.Data[tlsKeyCert]) == 0 || len(secret.Data[tlsKeyKey]) == 0 {
-		return fmt.Errorf("tls: certificate secret %q needs %s and %s", params.CertificateSecretName, tlsKeyCert, tlsKeyKey)
+		return field.ErrorList{field.Invalid(path, params.CertificateSecretName,
+			fmt.Sprintf("tls: certificate secret %q needs %s and %s", params.CertificateSecretName, tlsKeyCert, tlsKeyKey))}, nil
 	}
-	return nil
+	return nil, nil
 }
 
 // syncTLS makes sure the certificate the instance asks for exists and returns

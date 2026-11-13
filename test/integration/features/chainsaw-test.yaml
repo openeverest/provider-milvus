@@ -60,34 +60,24 @@ spec:
         - assert:
             file: 20-assert.yaml
 
+    # Admission refuses a downgrade once the upgrade has been reconciled.
     - name: downgrade-rejected
       try:
-        - patch:
+        - assert:
             resource:
               apiVersion: core.openeverest.io/v1alpha1
               kind: Instance
               metadata:
                 name: features
-              spec:
-                version: "2.6.15"
+              (status.observedGeneration == metadata.generation): true
+        - script:
+            content: |
+              kubectl patch instance/features -n $NAMESPACE --type=merge -p '{"spec":{"version":"2.6.15"}}'
+            check:
+              ($error != null): true
+              (contains($stderr, 'cannot be downgraded from 2.6.25 to 2.6.15')): true
         - assert:
             file: 30-assert.yaml
-        - patch:
-            resource:
-              apiVersion: core.openeverest.io/v1alpha1
-              kind: Instance
-              metadata:
-                name: features
-              spec:
-                version: "2.6.25"
-        - assert:
-            resource:
-              apiVersion: core.openeverest.io/v1alpha1
-              kind: Instance
-              metadata:
-                name: features
-              status:
-                (phase != 'Failed'): true
 
     - name: monitoring-off
       try:

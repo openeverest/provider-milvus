@@ -124,7 +124,7 @@ func TestValidateTLS(t *testing.T) {
 		},
 		"missing secret": {
 			params:  &definition.TLSParameters{Mode: definition.TLSModeRequire, CertificateSecretName: "s"},
-			wantErr: `certificate secret "s" not found`,
+			wantErr: `spec.parameters.tls.certificateSecretName: Not found: "s"`,
 		},
 		"secret without key": {
 			params:  &definition.TLSParameters{Mode: definition.TLSModeRequire, CertificateSecretName: "s"},
@@ -142,7 +142,7 @@ func TestValidateTLS(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			c := newTestContextWithObjects(t, tlsInstanceSpec(t, "standalone", tt.params), tt.objs...)
-			err := validateTLS(c)
+			err := validateInstance(c)
 			if tt.wantErr == "" {
 				assert.NoError(t, err)
 				return

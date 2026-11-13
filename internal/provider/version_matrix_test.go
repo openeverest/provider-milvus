@@ -13,15 +13,21 @@ import (
 	"sigs.k8s.io/yaml"
 
 	corev1alpha1 "github.com/openeverest/openeverest/v2/api/core/v1alpha1"
+	"github.com/openeverest/openeverest/v2/provider-runtime/controller"
+	"github.com/openeverest/openeverest/v2/provider-runtime/controller/validationtest"
 
+	"github.com/openeverest/provider-milvus/internal/common"
 	"github.com/openeverest/provider-milvus/internal/milvusapi"
 )
+
+// shippedProviderSpecPath is the Provider spec the chart installs.
+const shippedProviderSpecPath = "../../charts/provider-milvus/generated/provider-spec.yaml"
 
 // shippedProviderSpec is the Provider spec the chart installs, so the matrix
 // covers exactly the versions users can pick.
 func shippedProviderSpec(t *testing.T) corev1alpha1.ProviderSpec {
 	t.Helper()
-	data, err := os.ReadFile("../../charts/provider-milvus/generated/provider-spec.yaml")
+	data, err := os.ReadFile(shippedProviderSpecPath)
 	require.NoError(t, err)
 	var doc struct {
 		Spec corev1alpha1.ProviderSpec `json:"spec"`
@@ -43,13 +49,36 @@ func instanceAtVersion(spec corev1alpha1.ProviderSpec, topology, version string)
 	}
 }
 
+// withProviderRef names this provider on spec, as every Instance does.
+func withProviderRef(spec corev1alpha1.InstanceSpec) corev1alpha1.InstanceSpec {
+	spec.ProviderRef.Name = common.ProviderName
+	return spec
+}
+
+// runningDowngrades runs the downgrade check against the Milvus CR in c's
+// cluster, if any.
+func runningDowngrades(t *testing.T, c *controller.Context) error {
+	t.Helper()
+	existing := &milvusapi.Milvus{}
+	if err := c.Get(existing, c.Name()); err != nil {
+		return nil
+	}
+	desired, err := BuildMilvusSpec(c)
+	require.NoError(t, err)
+	return validateNoDowngrade(existing, desired).ToAggregate()
+}
+
 func TestShippedVersionsDeploy(t *testing.T) {
 	spec := shippedProviderSpec(t)
 	for _, bundle := range spec.Versions {
 		for topology := range spec.Topologies {
 			t.Run(bundle.Name+"/"+topology, func(t *testing.T) {
 				instance := instanceAtVersion(spec, topology, bundle.Name)
-				require.NoError(t, New().Validate(newTestContextWithProviderSpec(t, spec, instance)))
+				res := validationtest.New(t, New(), shippedProviderSpecPath).Run(&corev1alpha1.Instance{
+					ObjectMeta: metav1.ObjectMeta{Name: "test-milvus", Namespace: "db"},
+					Spec:       withProviderRef(instance),
+				}, nil)
+				require.Empty(t, res.Errors)
 
 				milvus, err := BuildMilvusSpec(newTestContextWithProviderSpec(t, spec, instance))
 				require.NoError(t, err)
@@ -81,12 +110,17 @@ func TestShippedVersionUpgradePaths(t *testing.T) {
 					Spec:       deployed,
 				}))
 
-				err = validateNoDowngrade(c)
+				err = runningDowngrades(t, c)
+				transition := validateNoDowngradeTransition(
+					&corev1alpha1.Instance{Spec: instanceAtVersion(spec, "cluster", to.Name)},
+					&corev1alpha1.Instance{Spec: instanceAtVersion(spec, "cluster", from.Name)}, &spec).ToAggregate()
 				if semver.Compare("v"+operatorVersion(to.Name), "v"+operatorVersion(from.Name)) < 0 {
 					assert.ErrorContains(t, err, "cannot be downgraded")
+					assert.ErrorContains(t, transition, "cannot be downgraded")
 					return
 				}
 				assert.NoError(t, err)
+				assert.NoError(t, transition)
 			})
 		}
 	}

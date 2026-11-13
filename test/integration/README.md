@@ -6,7 +6,8 @@ using [chainsaw](https://kyverno.github.io/chainsaw/). They apply OpenEverest
 and verify status propagation back to the `Instance`.
 
 The `core/` suite runs a standalone `Instance` through its lifecycle: create,
-authentication, readiness, dependency health, NodePort and LoadBalancer
+authentication, readiness, admission refusing an invalid Instance and a
+storage shrink, dependency health, NodePort and LoadBalancer
 exposure, a pod scheduling policy update, and delete. `scaling/` scales a
 cluster out and toggles autoscaling. `features/` checks what the provider
 writes onto the Milvus CR for engine configuration, pod customization,

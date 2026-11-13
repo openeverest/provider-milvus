@@ -10,6 +10,9 @@ config:
       supportedFields:
         properties:
           replicas: {minimum: 1, maximum: 1}
+          # The image comes from image, else version, else the bundle.
+          version: {}
+          image: {}
           resources: {}
           service: {}
           schedulingPolicy: {}
@@ -272,7 +275,7 @@ ui:
             maxRows: 8
         podSchedulingPolicy:
           uiType: group
-          groupType: toggleable
+          groupType: bordered
           label: Pod scheduling policy
           components:
             policy:

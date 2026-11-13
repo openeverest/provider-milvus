@@ -116,7 +116,7 @@ func makeMilvusComponent(c *controller.Context, name string, image milvusImage) 
 		Replicas: componentReplicasOrDefault(components, name, 1),
 	}
 	applySchedulingPolicy(&component.ComponentSpec, components[name].SchedulingPolicy)
-	params := componentParameters(c, name)
+	params := componentParameters(c.Instance(), name)
 	applyPodCustomization(&component, params.Pod)
 	applyAutoscaling(&component, params.Autoscaling)
 	applyProbes(&component.ComponentSpec, params.Probes)
@@ -168,8 +168,8 @@ func operatorVersion(version string) string {
 // parameters and deep-merges it into a single Values map. Milvus uses one shared
 // engine config (spec.config), so configuration provided on any component is
 // merged; components are processed in sorted name order for deterministic output.
-func milvusEngineConfig(c *controller.Context) (milvusapi.Values, error) {
-	instanceComponents := c.Instance().Spec.Components
+func milvusEngineConfig(in *corev1alpha1.Instance) (milvusapi.Values, error) {
+	instanceComponents := in.Spec.Components
 	names := make([]string, 0, len(instanceComponents))
 	for name := range instanceComponents {
 		names = append(names, name)
@@ -179,7 +179,7 @@ func milvusEngineConfig(c *controller.Context) (milvusapi.Values, error) {
 	merged := milvusapi.Values{}
 	for _, name := range names {
 		var params components.MilvusParameters
-		if !c.TryDecodeComponentParameters(instanceComponents[name], &params) || params.Configuration == "" {
+		if decodeRaw(instanceComponents[name].Parameters, &params) != nil || params.Configuration == "" {
 			continue
 		}
 		parsed := map[string]any{}
@@ -286,7 +286,7 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 		},
 	}
 
-	engineConfig, err := milvusEngineConfig(c)
+	engineConfig, err := milvusEngineConfig(c.Instance())
 	if err != nil {
 		return milvusapi.MilvusSpec{}, err
 	}
@@ -294,13 +294,13 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 		engineConfig = withActiveStandbyDefaults(engineConfig)
 	}
 	spec.Conf = engineConfig
-	storageParam, err := resolveStorageLocation(c, storageDependencyParam(c, topologyType))
+	storageParam, err := resolveStorageLocation(c, storageDependencyParam(c.Instance(), topologyType))
 	if err != nil {
 		return milvusapi.MilvusSpec{}, err
 	}
 	for _, dependencyConfig := range []milvusapi.Values{
 		externalStorageConfig(storageParam),
-		externalEtcdConfig(etcdDependencyParam(c, topologyType)),
+		externalEtcdConfig(etcdDependencyParam(c.Instance(), topologyType)),
 	} {
 		if dependencyConfig == nil {
 			continue
@@ -347,17 +347,6 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 	return spec, nil
 }
 
-// Validate checks if the Instance spec is valid.
-func (p *Provider) Validate(c *controller.Context) error {
-	l := log.FromContext(c.Context())
-	l.Info("Validating instance", "name", c.Name())
-
-	if err := validateInstance(c); err != nil {
-		return err
-	}
-	return p.validateReplicaHostsScaleIn(c)
-}
-
 // Sync ensures all required resources exist and are configured correctly.
 func (p *Provider) Sync(c *controller.Context) error {
 	l := log.FromContext(c.Context())
@@ -385,7 +374,7 @@ func (p *Provider) Sync(c *controller.Context) error {
 	if spec.Mode == milvusapi.MilvusModeCluster {
 		topologyType = "cluster"
 	}
-	if err := syncStorageLocationSecret(c, storageDependencyParam(c, topologyType)); err != nil {
+	if err := syncStorageLocationSecret(c, storageDependencyParam(c.Instance(), topologyType)); err != nil {
 		return err
 	}
 	if err := clearDroppedAutoscaling(c, spec); err != nil {

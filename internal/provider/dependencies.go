@@ -1,6 +1,7 @@
 package provider
 
 import (
+	corev1alpha1 "github.com/openeverest/openeverest/v2/api/core/v1alpha1"
 	"github.com/openeverest/openeverest/v2/provider-runtime/controller"
 	"k8s.io/utils/ptr"
 
@@ -74,7 +75,7 @@ func buildDependencies(c *controller.Context, topologyType string, storageParam 
 		}
 	}
 
-	deps := clusterDependencyParams(c)
+	deps := clusterDependencyParams(c.Instance())
 	dep := &milvusapi.MilvusDependencies{
 		Etcd:          buildEtcd(deps.Etcd, topologyType, deps.StorageClassName),
 		Storage:       buildStorage(storageParam, deps.StorageClassName),
@@ -88,9 +89,9 @@ func buildDependencies(c *controller.Context, topologyType string, storageParam 
 
 // clusterDependencyParams decodes the cluster dependency parameters, returning
 // an empty set when none are given.
-func clusterDependencyParams(c *controller.Context) cluster.ClusterDependencies {
+func clusterDependencyParams(in *corev1alpha1.Instance) cluster.ClusterDependencies {
 	var params cluster.ClusterTopologyParameters
-	if c.TryDecodeTopologyParameters(&params) && params.Dependencies != nil {
+	if tryDecodeTopologyParameters(in, &params) && params.Dependencies != nil {
 		return *params.Dependencies
 	}
 	return cluster.ClusterDependencies{}
@@ -114,7 +115,15 @@ func messageStreamType(c *controller.Context, requested string) string {
 // Pulsar default.
 func existingMessageStreamType(c *controller.Context) string {
 	existing := &milvusapi.Milvus{}
-	if err := c.Get(existing, c.Name()); err != nil || existing.Spec.Dep == nil {
+	if err := c.Get(existing, c.Name()); err != nil {
+		return ""
+	}
+	return appliedMessageStreamType(existing)
+}
+
+// appliedMessageStreamType is the stream a Milvus CR runs.
+func appliedMessageStreamType(existing *milvusapi.Milvus) string {
+	if existing.Spec.Dep == nil {
 		return ""
 	}
 	if existing.Spec.Dep.MsgStreamType != "" {

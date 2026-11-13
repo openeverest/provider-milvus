@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 
@@ -16,6 +17,19 @@ import (
 	"github.com/openeverest/provider-milvus/internal/common"
 	"github.com/openeverest/provider-milvus/internal/milvusapi"
 )
+
+// freeForm encodes free-form Kubernetes objects as the parameters carry them.
+func freeForm(objects []map[string]any) []apiextensionsv1.JSON {
+	encoded := make([]apiextensionsv1.JSON, 0, len(objects))
+	for _, object := range objects {
+		raw, err := json.Marshal(object)
+		if err != nil {
+			panic(err)
+		}
+		encoded = append(encoded, apiextensionsv1.JSON{Raw: raw})
+	}
+	return encoded
+}
 
 func podParams(t *testing.T, pod components.PodCustomization) *runtime.RawExtension {
 	t.Helper()
@@ -28,13 +42,13 @@ func TestBuildMilvusSpecPodCustomization(t *testing.T) {
 	sriov := components.PodCustomization{
 		Annotations: map[string]string{"k8s.v1.cni.cncf.io/networks": "sriov-rdma"},
 		Env:         []corev1.EnvVar{{Name: "QUERYNODE_IP", Value: "10.10.0.5"}},
-		Volumes: []map[string]any{{
+		Volumes: freeForm([]map[string]any{{
 			"name":     "nvidia-fs",
 			"hostPath": map[string]any{"path": "/dev/nvidia-fs0"},
-		}},
+		}}),
 		VolumeMounts:    []corev1.VolumeMount{{Name: "nvidia-fs", MountPath: "/dev/nvidia-fs0"}},
 		SecurityContext: map[string]any{"capabilities": map[string]any{"add": []any{"IPC_LOCK"}}},
-		InitContainers:  []map[string]any{{"name": "resolve-ip", "image": "busybox"}},
+		InitContainers:  freeForm([]map[string]any{{"name": "resolve-ip", "image": "busybox"}}),
 	}
 	c := newTestContext(t, corev1alpha1.InstanceSpec{
 		Topology: &corev1alpha1.TopologySpec{Type: "cluster"},
@@ -64,15 +78,15 @@ func TestPodCustomizationMatchesServerDefaults(t *testing.T) {
 	podIP := &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "status.podIP"}}
 	pod := components.PodCustomization{
 		Env: []corev1.EnvVar{{Name: "QUERYNODE_IP", ValueFrom: podIP}},
-		Volumes: []map[string]any{
+		Volumes: freeForm([]map[string]any{
 			{"name": "dev", "hostPath": map[string]any{"path": "/dev/nvidia-fs0"}},
 			{"name": "podinfo", "downwardAPI": map[string]any{"items": []any{map[string]any{
 				"path": "network-status", "fieldRef": map[string]any{"fieldPath": "metadata.annotations"},
 			}}}},
-		},
-		InitContainers: []map[string]any{{"name": "init", "image": "busybox", "env": []any{map[string]any{
+		}),
+		InitContainers: freeForm([]map[string]any{{"name": "init", "image": "busybox", "env": []any{map[string]any{
 			"name": "IP", "valueFrom": map[string]any{"fieldRef": map[string]any{"fieldPath": "status.podIP"}},
-		}}}},
+		}}}}),
 	}
 	component := milvusapi.Component{}
 	applyPodCustomization(&component, &pod)
@@ -97,7 +111,7 @@ func TestValidatePodCustomization(t *testing.T) {
 		wantErr string
 	}{
 		"valid": {pod: components.PodCustomization{
-			Volumes:         []map[string]any{{"name": "data", "emptyDir": map[string]any{}}},
+			Volumes:         freeForm([]map[string]any{{"name": "data", "emptyDir": map[string]any{}}}),
 			SecurityContext: map[string]any{"privileged": true},
 		}},
 		"env without name": {
@@ -105,11 +119,11 @@ func TestValidatePodCustomization(t *testing.T) {
 			wantErr: "pod.env[0].name is required",
 		},
 		"volume with unknown field": {
-			pod:     components.PodCustomization{Volumes: []map[string]any{{"name": "data", "hostPth": map[string]any{}}}},
+			pod:     components.PodCustomization{Volumes: freeForm([]map[string]any{{"name": "data", "hostPth": map[string]any{}}})},
 			wantErr: "pod.volumes[0] is invalid",
 		},
 		"volume without name": {
-			pod:     components.PodCustomization{Volumes: []map[string]any{{"emptyDir": map[string]any{}}}},
+			pod:     components.PodCustomization{Volumes: freeForm([]map[string]any{{"emptyDir": map[string]any{}}})},
 			wantErr: "pod.volumes[0].name is required",
 		},
 		"security context with wrong type": {
@@ -117,7 +131,7 @@ func TestValidatePodCustomization(t *testing.T) {
 			wantErr: "pod.securityContext is invalid",
 		},
 		"init container without image": {
-			pod:     components.PodCustomization{InitContainers: []map[string]any{{"name": "init"}}},
+			pod:     components.PodCustomization{InitContainers: freeForm([]map[string]any{{"name": "init"}})},
 			wantErr: "pod.initContainers[0] requires name and image",
 		},
 	}
