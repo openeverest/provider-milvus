@@ -22,6 +22,19 @@ import (
 	"github.com/openeverest/provider-milvus/internal/milvusapi"
 )
 
+// validateInstance runs the rules on c's Instance the way the runtime does
+// before Sync: Validate's, then, when they pass, ValidateReferences.
+func validateInstance(c *controller.Context) error {
+	if errs := validateSpec(c.Instance()); len(errs) > 0 {
+		return errs.ToAggregate()
+	}
+	errs, err := New().ValidateReferences(c)
+	if err != nil {
+		return err
+	}
+	return errs.ToAggregate()
+}
+
 func resources(t *testing.T, limits, requests map[corev1.ResourceName]string) *corev1.ResourceRequirements {
 	t.Helper()
 	toList := func(m map[corev1.ResourceName]string) corev1.ResourceList {
@@ -223,47 +236,41 @@ func TestValidateStorageNotDecreased(t *testing.T) {
 
 	t.Run("decrease is rejected", func(t *testing.T) {
 		c := newContextWithExistingStorage(t, standaloneSpec("10Gi"), "20Gi")
-		err := validateStorageNotDecreased(c, "standalone")
+		err := validateInstance(c)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "storage size cannot be decreased")
 	})
 
 	t.Run("increase is allowed", func(t *testing.T) {
 		c := newContextWithExistingStorage(t, standaloneSpec("40Gi"), "20Gi")
-		require.NoError(t, validateStorageNotDecreased(c, "standalone"))
+		require.NoError(t, validateInstance(c))
 	})
 
 	t.Run("same size is allowed", func(t *testing.T) {
 		c := newContextWithExistingStorage(t, standaloneSpec("20Gi"), "20Gi")
-		require.NoError(t, validateStorageNotDecreased(c, "standalone"))
+		require.NoError(t, validateInstance(c))
 	})
 
 	t.Run("no existing CR skips guard", func(t *testing.T) {
 		c := newContextWithExistingStorage(t, standaloneSpec("10Gi"), "")
-		require.NoError(t, validateStorageNotDecreased(c, "standalone"))
+		require.NoError(t, validateInstance(c))
 	})
 }
 
 func TestValidateTopologyUnchanged(t *testing.T) {
-	existing := &milvusapi.Milvus{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-milvus", Namespace: "db"},
-		Spec:       milvusapi.MilvusSpec{Mode: milvusapi.MilvusModeStandalone},
-	}
+	existing := &milvusapi.Milvus{Spec: milvusapi.MilvusSpec{Mode: milvusapi.MilvusModeStandalone}}
 
 	t.Run("switch is rejected", func(t *testing.T) {
-		c := newTestContextWithObjects(t, corev1alpha1.InstanceSpec{}, existing.DeepCopyObject().(*milvusapi.Milvus))
-		err := validateTopologyUnchanged(c, "cluster")
+		err := validateTopologyUnchanged(existing, "cluster")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "topology cannot be changed from standalone to cluster")
+		assert.Contains(t, err.Error(), "spec.topology.type: Forbidden: topology cannot be changed from standalone to cluster")
 	})
 
 	t.Run("same topology is allowed", func(t *testing.T) {
-		c := newTestContextWithObjects(t, corev1alpha1.InstanceSpec{}, existing.DeepCopyObject().(*milvusapi.Milvus))
-		require.NoError(t, validateTopologyUnchanged(c, "standalone"))
+		require.NoError(t, validateTopologyUnchanged(existing, "standalone"))
 	})
 
-	t.Run("no existing CR skips guard", func(t *testing.T) {
-		c := newTestContextWithObjects(t, corev1alpha1.InstanceSpec{})
-		require.NoError(t, validateTopologyUnchanged(c, "cluster"))
+	t.Run("CR without a mode skips guard", func(t *testing.T) {
+		require.NoError(t, validateTopologyUnchanged(&milvusapi.Milvus{}, "cluster"))
 	})
 }

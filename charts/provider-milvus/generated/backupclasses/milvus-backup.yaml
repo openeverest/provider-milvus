@@ -14,24 +14,48 @@ spec:
   executionMode: ProviderManaged
   parametersSchema:
     openAPIV3Schema:
+      description: |-
+        MilvusBackupParameters describes the parameters accepted by Backup CRs that
+        target this class (spec.parameters).
       properties:
         collections:
+          description: |-
+            Collections limits the backup to a comma-separated list of collections
+            in milvus-backup filter syntax: "coll", "db.coll" or "db.*". Empty backs
+            up every collection.
           type: string
         includeRBAC:
+          description: IncludeRBAC also backs up users, roles and grants.
           type: boolean
       type: object
   providerManaged:
     supportsPITR: false
   restoreParametersSchema:
     openAPIV3Schema:
+      description: |-
+        MilvusRestoreParameters describes the parameters accepted by Restore CRs
+        that target this class (spec.parameters).
       properties:
         collectionSuffix:
+          description: |-
+            CollectionSuffix restores each collection next to the existing one under
+            its name plus this suffix, instead of replacing it.
+          pattern: ^[A-Za-z0-9_]*$
           type: string
         collections:
+          description: |-
+            Collections limits the restore to a comma-separated list of collections
+            in milvus-backup filter syntax. Empty restores every collection.
           type: string
         includeRBAC:
+          description: |-
+            IncludeRBAC also restores users, roles and grants when the backup has
+            them.
           type: boolean
         keepExistingCollections:
+          description: |-
+            KeepExistingCollections fails the restore of a collection that already
+            exists instead of dropping and replacing it.
           type: boolean
       type: object
   supportedProviders:

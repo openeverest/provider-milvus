@@ -28,7 +28,7 @@ var groupableComponents = []string{
 // grouped component's own replicas, so they are set to the groups' total to
 // keep the Milvus CR self-consistent.
 func applyDeploymentGroups(c *controller.Context, name string, component *milvusapi.Component) []milvusapi.DeploymentGroup {
-	groups := componentParameters(c, name).Groups
+	groups := componentParameters(c.Instance(), name).Groups
 	if len(groups) == 0 {
 		return nil
 	}

@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -258,7 +259,7 @@ func (p *Provider) validateReplicaHostsScaleIn(c *controller.Context) error {
 	}
 	shrinking := map[string]int32{}
 	for _, name := range replicaHosts {
-		requested, deployed := requestedNodes(c, name), deployedNodes(cr, name)
+		requested, deployed := requestedNodes(c.Instance(), name), deployedNodes(cr, name)
 		if requested != nil && deployed != nil && *requested < *deployed {
 			shrinking[name] = *requested
 		}
@@ -286,8 +287,9 @@ func (p *Provider) validateReplicaHostsScaleIn(c *controller.Context) error {
 		}
 		for _, collection := range slices.Sorted(maps.Keys(loaded)) {
 			if loaded[collection] > requested {
-				return fmt.Errorf("%s replicas cannot go below %d: collection %q is loaded with %d replicas; release it or reload it with fewer replicas first",
-					name, loaded[collection], collection, loaded[collection])
+				return field.Forbidden(componentsPath.Key(name).Child("replicas"),
+					fmt.Sprintf("%s replicas cannot go below %d: collection %q is loaded with %d replicas; release it or reload it with fewer replicas first",
+						name, loaded[collection], collection, loaded[collection]))
 			}
 		}
 	}
@@ -296,12 +298,12 @@ func (p *Provider) validateReplicaHostsScaleIn(c *controller.Context) error {
 
 // requestedNodes is the fewest pods the spec runs for the component: the
 // groups' total, or the replicas (also the autoscaling minimum).
-func requestedNodes(c *controller.Context, name string) *int32 {
-	component, ok := c.Instance().Spec.Components[name]
+func requestedNodes(in *corev1alpha1.Instance, name string) *int32 {
+	component, ok := in.Spec.Components[name]
 	if !ok {
 		return nil
 	}
-	if groups := componentParameters(c, name).Groups; len(groups) > 0 {
+	if groups := componentParameters(in, name).Groups; len(groups) > 0 {
 		var total int32
 		for _, group := range groups {
 			total += group.Replicas

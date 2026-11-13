@@ -6,8 +6,9 @@ $(LOCALBIN):
 # CONTAINER_TOOL defines the container tool to be used for building images.
 CONTAINER_TOOL ?= docker
 
-# OpenEverest branch to use for OpenEverest CRD installation.
-OPENEVEREST_BRANCH ?= release-2.0
+# Directory of the OpenEverest CRDs to install. Empty uses those of the core
+# module go.mod pins, the API the provider is built against.
+OPENEVEREST_CRD_DIR ?=
 
 # Image URL to use for building/pushing image targets
 IMG ?= ghcr.io/openeverest/provider-milvus-dev:latest
@@ -48,8 +49,8 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: run
-run: generate ## Run the provider locally.
-	go run cmd/provider/main.go
+run: generate ## Run the provider locally, without the admission webhook.
+	go run cmd/provider/main.go --admission=false
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint.
@@ -182,16 +183,13 @@ load-openeverest-controller-image: ## Import the OpenEverest controller image in
 	k3d image import ${OPENEVEREST_CONTROLLER_IMG} -c ${K3D_CLUSTER_NAME}
 
 .PHONY: install-crds
-install-crds: ## Install OpenEverest CRDs (and Milvus operator CRDs) into the cluster.
-	kubectl apply -f https://raw.githubusercontent.com/openeverest/openeverest/$(OPENEVEREST_BRANCH)/config/crd/bases/core.openeverest.io_providers.yaml
-	kubectl apply -f https://raw.githubusercontent.com/openeverest/openeverest/$(OPENEVEREST_BRANCH)/config/crd/bases/core.openeverest.io_instances.yaml
-	kubectl apply -f https://raw.githubusercontent.com/openeverest/openeverest/$(OPENEVEREST_BRANCH)/config/crd/bases/core.openeverest.io_instancepresets.yaml
-	kubectl apply -f https://raw.githubusercontent.com/openeverest/openeverest/$(OPENEVEREST_BRANCH)/config/crd/bases/backup.openeverest.io_backupclasses.yaml
-	kubectl apply -f https://raw.githubusercontent.com/openeverest/openeverest/$(OPENEVEREST_BRANCH)/config/crd/bases/backup.openeverest.io_backups.yaml
-	kubectl apply -f https://raw.githubusercontent.com/openeverest/openeverest/$(OPENEVEREST_BRANCH)/config/crd/bases/backup.openeverest.io_restores.yaml
-	kubectl apply -f https://raw.githubusercontent.com/openeverest/openeverest/$(OPENEVEREST_BRANCH)/config/crd/bases/backup.openeverest.io_backupstorages.yaml
-	# The Milvus operator chart installs its CRDs by default.
-	# If CRDs are not bundled for a custom install path, install them from the operator chart release.
+install-crds: ## Install the OpenEverest CRDs, by default of the core version go.mod pins (the Milvus operator chart installs its own).
+	@dir="$(OPENEVEREST_CRD_DIR)"; \
+	if [ -z "$$dir" ]; then \
+		go mod download github.com/openeverest/openeverest/v2 && \
+		dir="$$(go list -m -f '{{.Dir}}' github.com/openeverest/openeverest/v2)/config/crd/bases"; \
+	fi; \
+	kubectl apply --server-side --force-conflicts -f "$$dir"
 
 .PHONY: deploy-provider-ci
 deploy-provider-ci: helm-deps ## Deploy the provider via Helm for CI (IMG must already be imported into k3d).
