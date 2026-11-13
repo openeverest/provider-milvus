@@ -3,21 +3,18 @@ package provider
 import (
 	"fmt"
 	"maps"
+	"slices"
 
-	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
-	"github.com/prometheus/common/model"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/validation"
-	"k8s.io/apimachinery/pkg/util/validation/field"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	corev1alpha1 "github.com/openeverest/openeverest/v2/api/core/v1alpha1"
 	"github.com/openeverest/openeverest/v2/provider-runtime/controller"
 
 	"github.com/openeverest/provider-milvus/definition/monitoring"
-	"github.com/openeverest/provider-milvus/internal/common"
 	"github.com/openeverest/provider-milvus/internal/milvusapi"
 )
 
@@ -28,145 +25,89 @@ const (
 	milvusMetricsPath     = "/metrics"
 )
 
+var _ controller.MonitoringSourcesProvider = (*Provider)(nil)
+
+// MonitoringSources implements controller.MonitoringSourcesProvider. Milvus
+// serves OpenMetrics itself on every component (metrics: Native in
+// definition/monitoring.yaml), so the endpoints need no exporter and are
+// published whether or not a destination asks for metrics. They are
+// published once Milvus has come up, and stay published while later changes
+// roll its pods; a stopped or deleted instance publishes none. Monitoring
+// extensions, or the user's own scraper, read them from
+// Instance.status.monitoring.sources.metrics.
+func (p *Provider) MonitoringSources(c *controller.Context) (*corev1alpha1.MonitoringSources, error) {
+	sources := &corev1alpha1.MonitoringSources{}
+	cr := &milvusapi.Milvus{}
+	if err := c.Get(cr, c.Name()); err != nil {
+		if apierrors.IsNotFound(err) {
+			return sources, nil
+		}
+		return nil, fmt.Errorf("get Milvus %q: %w", c.Name(), err)
+	}
+	// The operator reports Pending only until Milvus first comes up, and
+	// Healthy or Unhealthy from then on, mid-rollout too.
+	if cr.Status.Status != milvusapi.StatusHealthy && cr.Status.Status != milvusapi.StatusUnhealthy {
+		return sources, nil
+	}
+	components := milvusComponentSpecs(cr.Spec.Com)
+	for _, name := range slices.Sorted(maps.Keys(components)) {
+		sources.Metrics = append(sources.Metrics, corev1alpha1.MetricsEndpoint{
+			Component: name,
+			PodSelector: map[string]string{
+				controller.InstanceLabel:  c.Name(),
+				controller.ComponentLabel: name,
+			},
+			Port:   intstr.FromString(milvusMetricsPortName),
+			Path:   milvusMetricsPath,
+			Scheme: "http",
+		})
+	}
+	return sources, nil
+}
+
+// podMonitorGVK is the Prometheus Operator PodMonitor, deleted only as
+// metadata so the provider needs neither its types nor its CRD.
+var podMonitorGVK = schema.GroupVersionKind{Group: "monitoring.coreos.com", Version: "v1", Kind: "PodMonitor"}
+
+// deleteLegacyPodMonitor removes the PodMonitor that releases before the
+// monitoring contract created for the monitoring.prometheus parameter; a
+// monitoring extension now creates the scrape objects from the published
+// sources. Clusters without the Prometheus Operator CRDs are skipped.
+// TODO: drop once no supported release created PodMonitors.
+func deleteLegacyPodMonitor(c *controller.Context) error {
+	pm := &metav1.PartialObjectMetadata{ObjectMeta: c.ObjectMeta(legacyPodMonitorName(c.Name()))}
+	pm.SetGroupVersionKind(podMonitorGVK)
+	if err := c.Delete(pm); err != nil && !meta.IsNoMatchError(err) {
+		return fmt.Errorf("delete legacy PodMonitor: %w", err)
+	}
+	return nil
+}
+
+// legacyPodMonitorName is the name of the PodMonitor earlier releases created.
+func legacyPodMonitorName(instanceName string) string {
+	return instanceName + "-metrics"
+}
+
 // topologyMonitoring reads only the monitoring block, which both topologies
-// share, so a malformed dependency block cannot hide it.
+// share.
 type topologyMonitoring struct {
 	Monitoring *monitoring.Monitoring `json:"monitoring,omitempty"`
 }
 
-func prometheusParams(in *corev1alpha1.Instance) *monitoring.Prometheus {
+// legacyPrometheusPath is the deprecated parameter earlier releases scraped
+// metrics with.
+var legacyPrometheusPath = topologyParametersPath.Child("monitoring", "prometheus")
+
+// monitoringWarnings tells the user that the deprecated Prometheus parameter
+// no longer does anything. It stays in the schema so Instances that set it
+// remain valid.
+func monitoringWarnings(in *corev1alpha1.Instance) []string {
 	var params topologyMonitoring
-	if !tryDecodeTopologyParameters(in, &params) || params.Monitoring == nil {
+	if !tryDecodeTopologyParameters(in, &params) || params.Monitoring == nil ||
+		params.Monitoring.Prometheus == nil || !params.Monitoring.Prometheus.Enabled { //nolint:staticcheck // warns about the deprecated parameter
 		return nil
 	}
-	return params.Monitoring.Prometheus
-}
-
-func prometheusEnabled(params *monitoring.Prometheus) bool {
-	return params != nil && params.Enabled
-}
-
-func podMonitorName(instanceName string) string {
-	return instanceName + "-metrics"
-}
-
-// validateMonitoring rejects settings the PodMonitor CRD would refuse.
-func validateMonitoring(in *corev1alpha1.Instance) error {
-	var params topologyMonitoring
-	if err := decodeTopologyParametersIfPresent(in, &params); err != nil {
-		return err
-	}
-	if params.Monitoring == nil || !prometheusEnabled(params.Monitoring.Prometheus) {
-		return nil
-	}
-	path := topologyParametersPath.Child("monitoring", "prometheus")
-	prometheus := params.Monitoring.Prometheus
-	if prometheus.Interval != "" {
-		if _, err := model.ParseDuration(prometheus.Interval); err != nil {
-			return fieldErrorf(path.Child("interval"), "monitoring.prometheus.interval %q is not a valid duration such as 30s or 1m", prometheus.Interval)
-		}
-	}
-	for key, value := range prometheus.PodMonitorLabels {
-		if errs := validation.IsQualifiedName(key); len(errs) > 0 {
-			return fieldErrorf(path.Child("podMonitorLabels"), "monitoring.prometheus.podMonitorLabels key %q: %s", key, errs[0])
-		}
-		if errs := validation.IsValidLabelValue(value); len(errs) > 0 {
-			return fieldErrorf(path.Child("podMonitorLabels").Key(key), "monitoring.prometheus.podMonitorLabels[%q] value %q: %s", key, value, errs[0])
-		}
-	}
-	return nil
-}
-
-// validateMonitoringReferences rejects an enabled integration on a cluster
-// without the Prometheus Operator.
-func validateMonitoringReferences(c *controller.Context) (field.ErrorList, error) {
-	if !prometheusEnabled(prometheusParams(c.Instance())) {
-		return nil, nil
-	}
-	podMonitorKind := monitoringv1.SchemeGroupVersion.WithKind(monitoringv1.PodMonitorsKind)
-	if _, err := c.Client().RESTMapper().RESTMapping(podMonitorKind.GroupKind(), podMonitorKind.Version); err != nil {
-		if meta.IsNoMatchError(err) {
-			return field.ErrorList{invalid(topologyParametersPath.Child("monitoring", "prometheus", "enabled"),
-				"prometheus monitoring requires the Prometheus Operator: the PodMonitor CRD (monitoring.coreos.com/v1) is not installed")}, nil
-		}
-		return nil, fmt.Errorf("look up the PodMonitor CRD: %w", err)
-	}
-	return nil, nil
-}
-
-// syncPodMonitor creates the PodMonitor that scrapes every Milvus component,
-// or removes it once the Prometheus integration is turned off.
-func syncPodMonitor(c *controller.Context) error {
-	if err := deleteOperatorPodMonitor(c); err != nil {
-		return err
-	}
-
-	name := podMonitorName(c.Name())
-	params := prometheusParams(c.Instance())
-	if !prometheusEnabled(params) {
-		err := c.Delete(&monitoringv1.PodMonitor{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: c.Namespace()}})
-		if err != nil && !meta.IsNoMatchError(err) {
-			return fmt.Errorf("delete PodMonitor %q: %w", name, err)
-		}
-		return nil
-	}
-
-	if err := c.Apply(milvusPodMonitor(c.ObjectMeta(name), c.Name(), params)); err != nil {
-		if meta.IsNoMatchError(err) {
-			return fmt.Errorf("prometheus monitoring requires the Prometheus Operator PodMonitor CRD (monitoring.coreos.com/v1): %w", err)
-		}
-		return fmt.Errorf("apply PodMonitor %q: %w", name, err)
-	}
-	return nil
-}
-
-// deleteOperatorPodMonitor removes the PodMonitor the Milvus operator created
-// before the provider turned its metrics off, so a disabled instance is not
-// scraped and an enabled one is not scraped twice.
-func deleteOperatorPodMonitor(c *controller.Context) error {
-	legacy := &monitoringv1.PodMonitor{}
-	if err := c.Get(legacy, c.Name()); err != nil {
-		if apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
-			return nil
-		}
-		return fmt.Errorf("get PodMonitor %q: %w", c.Name(), err)
-	}
-	owner := metav1.GetControllerOf(legacy)
-	if owner == nil || owner.APIVersion != milvusapi.GroupVersion || owner.Kind != "Milvus" {
-		return nil
-	}
-	// The UID precondition keeps a stale cache from deleting a recreated object.
-	err := c.Client().Delete(c.Context(), legacy, client.Preconditions{UID: &legacy.UID})
-	if err != nil && !apierrors.IsNotFound(err) && !apierrors.IsConflict(err) {
-		return fmt.Errorf("delete operator PodMonitor %q: %w", c.Name(), err)
-	}
-	return nil
-}
-
-// milvusPodMonitor selects the pods the provider labels for every component,
-// which leaves out the bundled etcd, MinIO and Pulsar. User labels never
-// override the managed ones, which identify the owning Instance.
-func milvusPodMonitor(objectMeta metav1.ObjectMeta, instanceName string, params *monitoring.Prometheus) *monitoringv1.PodMonitor {
-	labels := maps.Clone(params.PodMonitorLabels)
-	if labels == nil {
-		labels = map[string]string{}
-	}
-	maps.Copy(labels, objectMeta.Labels)
-	objectMeta.Labels = labels
-
-	return &monitoringv1.PodMonitor{
-		ObjectMeta: objectMeta,
-		Spec: monitoringv1.PodMonitorSpec{
-			Selector: metav1.LabelSelector{MatchLabels: map[string]string{
-				controller.ProviderLabel: common.ProviderName,
-				controller.InstanceLabel: instanceName,
-			}},
-			PodTargetLabels: []string{controller.ComponentLabel},
-			PodMetricsEndpoints: []monitoringv1.PodMetricsEndpoint{{
-				Port:     new(milvusMetricsPortName),
-				Path:     milvusMetricsPath,
-				Interval: monitoringv1.Duration(params.Interval),
-			}},
-		},
-	}
+	return []string{legacyPrometheusPath.String() + " is deprecated and has no effect: the provider no longer " +
+		"creates a PodMonitor. Its metrics endpoints are listed in status.monitoring.sources.metrics; send them " +
+		"to a monitoring destination in spec.monitoring.destinations, or point your own scraper at them."}
 }

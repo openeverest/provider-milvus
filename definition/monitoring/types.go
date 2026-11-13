@@ -1,25 +1,25 @@
-// Package monitoring contains the shared parameter types that control how the
-// instance's metrics are collected. They are embedded into the per-topology
-// parameter structs and converted to OpenAPI schema during generation.
+// Package monitoring contains the shared parameter types of the deprecated
+// Prometheus integration. They are embedded into the per-topology parameter
+// structs and converted to OpenAPI schema during generation.
 //
 // +k8s:openapi-gen=true
 package monitoring
 
-// Monitoring configures metrics collection for the instance.
+// Monitoring is deprecated and has no effect.
 type Monitoring struct {
-	// Prometheus configures scraping by the Prometheus Operator.
+	// Deprecated: Prometheus has no effect. The provider publishes its
+	// metrics endpoints in status.monitoring.sources.metrics; send them to a
+	// monitoring destination listed in spec.monitoring.destinations.
 	Prometheus *Prometheus `json:"prometheus,omitempty"`
 }
 
-// Prometheus creates a PodMonitor that scrapes the metrics endpoint of every
-// Milvus component pod. Requires the Prometheus Operator CRDs in the cluster.
+// Prometheus is deprecated and has no effect. It is accepted so Instances
+// written by earlier releases stay valid.
 type Prometheus struct {
-	// Enabled creates the PodMonitor; disabling it removes the PodMonitor.
+	// Deprecated: Enabled has no effect.
 	Enabled bool `json:"enabled,omitempty"`
-	// Interval between scrapes, e.g. 30s. Defaults to the Prometheus global
-	// scrape interval.
+	// Deprecated: Interval has no effect.
 	Interval string `json:"interval,omitempty"`
-	// PodMonitorLabels are added to the PodMonitor so that the Prometheus
-	// podMonitorSelector picks it up (e.g. release: kube-prometheus-stack).
+	// Deprecated: PodMonitorLabels has no effect.
 	PodMonitorLabels map[string]string `json:"podMonitorLabels,omitempty"`
 }
