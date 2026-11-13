@@ -1,0 +1,76 @@
+---
+# ClusterInstancePresets suite for the Milvus provider.
+#
+# The chart installs a ClusterInstancePreset per topology. Every preset is
+# admitted as an Instance spec (server-side dry run, so the provider's
+# admission webhook checks it), and an Instance created from the standalone
+# preset reaches Ready. The Milvus operator is scaled to 0 in CI, so the step
+# marks the Milvus CR Healthy in its place. The cluster preset is only dry-run:
+# its five components, three etcd members and MinIO do not fit a CI runner.
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: presets
+spec:
+  description: |
+    The chart's ClusterInstancePresets are admitted as Instances, and one
+    created from the standalone preset becomes Ready.
+
+  catch:
+    - script:
+        content: kubectl get clusterinstancepresets -o yaml; kubectl -n $NAMESPACE get instance,milvuses.milvus.io -o yaml
+    - podLogs:
+        namespace: provider-system
+        selector: app.kubernetes.io/name=provider-milvus
+        tail: 100
+
+  steps:
+    - name: presets-installed
+      try:
+        - assert:
+            file: 00-assert.yaml
+
+    - name: presets-admitted
+      try:
+        # chainsaw runs scripts with /bin/sh: POSIX sh only.
+        - script:
+            content: |
+              set -eu
+              for preset in milvus-standalone milvus-cluster; do
+                kubectl get clusterinstancepreset "$preset" -o json \
+                  | jq --arg p "$preset" --arg ns "$NAMESPACE" '{
+                      apiVersion: "core.openeverest.io/v1alpha1",
+                      kind: "Instance",
+                      metadata: {name: ("from-" + $p), namespace: $ns},
+                      spec: .spec
+                    }' \
+                  | kubectl apply --dry-run=server -f -
+              done
+
+    - name: create-from-preset
+      try:
+        - script:
+            content: |
+              set -eu
+              kubectl get clusterinstancepreset milvus-standalone -o json \
+                | jq --arg ns "$NAMESPACE" '{
+                    apiVersion: "core.openeverest.io/v1alpha1",
+                    kind: "Instance",
+                    metadata: {
+                      name: "from-preset",
+                      namespace: $ns,
+                      annotations: {"openeverest.io/cluster-instance-preset": "milvus-standalone"}
+                    },
+                    spec: .spec
+                  }' \
+                | kubectl apply -f -
+        - assert:
+            file: 10-assert.yaml
+        # Stand in for the Milvus operator: the CR is Healthy and caught up.
+        - script:
+            content: |
+              generation=$(kubectl get milvuses.milvus.io/from-preset -n $NAMESPACE -o jsonpath='{.metadata.generation}')
+              kubectl patch milvuses.milvus.io/from-preset --subresource status -n $NAMESPACE \
+                -p "{\"status\":{\"status\":\"Healthy\",\"observedGeneration\":$generation}}" --type=merge
+        - assert:
+            file: 11-assert.yaml

@@ -113,6 +113,15 @@ jobs:
       suite: scaling
     secrets: inherit
 
+  test-integration-presets:
+    name: Integration / presets
+    needs: [lint, build, verify]
+    uses: ./.github/workflows/integration-test.yaml
+    with:
+      make_target: test-integration-presets
+      suite: presets
+    secrets: inherit
+
   test-integration-features:
     name: Integration / features
     needs: [lint, build, verify]
