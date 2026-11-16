@@ -812,7 +812,7 @@ ui:
             maxRows: 8
         podSchedulingPolicy:
           uiType: group
-          groupType: toggleable
+          groupType: bordered
           label: Pod scheduling policy
           components:
             policy:

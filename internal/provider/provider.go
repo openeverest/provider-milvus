@@ -10,6 +10,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -23,8 +24,11 @@ import (
 	"github.com/openeverest/provider-milvus/internal/milvusapi"
 )
 
-// Compile-time check that Provider implements the required interface.
-var _ controller.ProviderInterface = (*Provider)(nil)
+// Compile-time check that Provider implements the required interfaces.
+var (
+	_ controller.ProviderInterface  = (*Provider)(nil)
+	_ controller.ReferenceValidator = (*Provider)(nil)
+)
 
 // Provider implements controller.ProviderInterface for the provider-milvus provider.
 type Provider struct {
@@ -347,15 +351,26 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 	return spec, nil
 }
 
-// Validate checks if the Instance spec is valid.
-func (p *Provider) Validate(c *controller.Context) error {
+// Validate has no rules of its own: the provider's rules read the deployed
+// Milvus and the cluster, so they run in ValidateReferences.
+func (p *Provider) Validate(controller.ValidationInput) controller.ValidationResult {
+	return controller.ValidationResult{}
+}
+
+// ValidateReferences runs the provider's rules before every Sync and reports
+// a rejection on spec.
+func (p *Provider) ValidateReferences(c *controller.Context) (field.ErrorList, error) {
 	l := log.FromContext(c.Context())
 	l.Info("Validating instance", "name", c.Name())
 
-	if err := validateInstance(c); err != nil {
-		return err
+	err := validateInstance(c)
+	if err == nil {
+		err = p.validateReplicaHostsScaleIn(c)
 	}
-	return p.validateReplicaHostsScaleIn(c)
+	if err != nil {
+		return field.ErrorList{field.Invalid(field.NewPath("spec"), field.OmitValueType{}, err.Error())}, nil
+	}
+	return nil, nil
 }
 
 // Sync ensures all required resources exist and are configured correctly.

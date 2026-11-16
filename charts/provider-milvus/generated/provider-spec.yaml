@@ -3544,7 +3544,7 @@ spec:
                 policy:
                   uiType: widget
                   widgetType: podSchedulingPolicy
-              groupType: toggleable
+              groupType: bordered
               label: Pod scheduling policy
               uiType: group
             storageClass:
@@ -3571,6 +3571,7 @@ spec:
                 label: Milvus Version
                 optionsPath: spec.versions
                 optionsPathConfig:
+                  defaultValuePath: spec.defaultVersion
                   labelPath: name
                   valuePath: name
               path: spec.version
@@ -4345,7 +4346,7 @@ spec:
                 policy:
                   uiType: widget
                   widgetType: podSchedulingPolicy
-              groupType: toggleable
+              groupType: bordered
               label: Pod scheduling policy
               uiType: group
             storageClass:
@@ -4372,6 +4373,7 @@ spec:
                 label: Milvus Version
                 optionsPath: spec.versions
                 optionsPathConfig:
+                  defaultValuePath: spec.defaultVersion
                   labelPath: name
                   valuePath: name
               path: spec.version

@@ -36,7 +36,7 @@ func resolveStorageLocation(c *controller.Context, param *dependencies.Storage) 
 	if err != nil {
 		return nil, fmt.Errorf("storage location: %w", err)
 	}
-	store, err := backupStorageObjectStore(bs, "")
+	store, err := backupStorageObjectStore(c, bs, "")
 	if err != nil {
 		return nil, fmt.Errorf("storage location: %w", err)
 	}
@@ -63,10 +63,11 @@ func storageLocationKeys(c *controller.Context, name string) (accessKey, secretK
 	if err != nil {
 		return "", "", fmt.Errorf("storage location: %w", err)
 	}
-	accessKey, secretKey, err = c.BackupStorageCredentials(bs)
+	_, data, err := c.BackupStorageCredentials(bs)
 	if err != nil {
 		return "", "", fmt.Errorf("storage location %q: %w", name, err)
 	}
+	accessKey, secretKey = string(data["AWS_ACCESS_KEY_ID"]), string(data["AWS_SECRET_ACCESS_KEY"])
 	if accessKey == "" || secretKey == "" {
 		return "", "", fmt.Errorf("storage location %q: its credentials Secret has no AWS_ACCESS_KEY_ID or AWS_SECRET_ACCESS_KEY", name)
 	}
