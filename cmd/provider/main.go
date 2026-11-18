@@ -27,10 +27,9 @@ func main() {
 	p := provider.New()
 
 	opts := []reconciler.ReconcilerOption{
-		// Enable HTTP server for validation endpoint
+		// Enable HTTP server for the health and readiness endpoints
 		reconciler.WithServer(reconciler.ServerConfig{
-			Port:           serverPort,
-			ValidationPath: "/validate",
+			Port: serverPort,
 		}),
 	}
 

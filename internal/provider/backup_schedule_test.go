@@ -26,7 +26,7 @@ import (
 
 func scheduledInstance(schedules ...corev1alpha1.InstanceBackupSchedule) *corev1alpha1.Instance {
 	return &corev1alpha1.Instance{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-milvus", Namespace: "db"},
+		ObjectMeta: metav1.ObjectMeta{Name: "test-milvus", Namespace: "db", UID: "milvus-uid"},
 		Spec: corev1alpha1.InstanceSpec{
 			ProviderRef: commonv1alpha1.ObjectRef{Name: common.ProviderName},
 			Backup: &corev1alpha1.InstanceBackupSpec{
@@ -101,7 +101,48 @@ func TestSyncBackupSchedules(t *testing.T) {
 
 		cm := &corev1.ConfigMap{}
 		require.NoError(t, c.Get(cm, "test-milvus-daily"))
-		assert.Contains(t, cm.Data["backup.yaml"], "rootPath: everest/milvus/db/test-milvus", "scheduled and on-demand backups share a path")
+		assert.Contains(t, cm.Data["backup.yaml"], "rootPath: backups/db/test-milvus/milvus-uid/s3", "scheduled and on-demand backups share a path")
+	})
+
+	t.Run("keeps the CronJobs of a held storage and adds none", func(t *testing.T) {
+		instance := scheduledInstance(daily(nil))
+		c := newScheduleContext(t, instance, backupFixtures("2.6.15")...)
+		require.NoError(t, syncBackupSchedules(c))
+
+		storage := &backupv1alpha1.BackupStorage{}
+		require.NoError(t, c.Get(storage, "s3"))
+		storage.Status.Conditions[0].Status = metav1.ConditionFalse
+		require.NoError(t, c.Client().Update(context.Background(), storage))
+		weekly := daily(nil)
+		weekly.Name = "weekly"
+		instance.Spec.Backup.Storages[0].Schedules[0].Cron = "0 4 * * *"
+		instance.Spec.Backup.Storages[0].Schedules = append(instance.Spec.Backup.Storages[0].Schedules, weekly)
+
+		c = controller.NewContext(context.Background(), c.Client(), instance, common.ProviderName)
+		require.NoError(t, syncBackupSchedules(c))
+
+		assert.Equal(t, "0 3 * * *", getCronJob(t, c, "test-milvus-daily").Spec.Schedule)
+		cronJobs := &batchv1.CronJobList{}
+		require.NoError(t, c.List(cronJobs))
+		assert.Len(t, cronJobs.Items, 1)
+	})
+
+	t.Run("rejects a storage whose TLS settings milvus-backup cannot honour", func(t *testing.T) {
+		objs := backupFixtures("2.6.15")
+		storage, ok := objs[2].(*backupv1alpha1.BackupStorage)
+		require.True(t, ok)
+		storage.Spec.Parameters = &runtime.RawExtension{Raw: []byte(`{"region":"us-east-1","endpointURL":"https://minio.storage.svc"}`)}
+		storage.Spec.TLS = &commonv1alpha1.TLSConfig{InsecureSkipVerify: true}
+		c := newScheduleContext(t, scheduledInstance(daily(nil)), objs...)
+
+		require.NoError(t, syncBackupSchedules(c))
+
+		cronJobs := &batchv1.CronJobList{}
+		require.NoError(t, c.List(cronJobs))
+		assert.Empty(t, cronJobs.Items)
+		storages, err := c.BackupStorages()
+		require.NoError(t, err)
+		assert.Equal(t, corev1alpha1.ReasonTLSOptionUnsupported, storages[0].Reason)
 	})
 
 	t.Run("removes the CronJob of a disabled schedule", func(t *testing.T) {
