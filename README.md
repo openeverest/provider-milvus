@@ -49,7 +49,7 @@ manages pods directly — all lifecycle work is delegated to the operator.
 
 | provider-milvus | OpenEverest | Operator | Kubernetes |
 |---|---|---|---|
-| `0.5.x` | `2.0.0-dev.5` | `1.3.13` | `1.30` – `1.36` |
+| `0.5.x` | `2.0.0-alpha.1` | `1.3.13` | `1.30` – `1.36` |
 | `0.4.x` | `>= 2.0.0` | `1.3.11` | `1.30` – `1.36` |
 | `0.3.x` | `>= 2.0.0` | `1.3.11` | `1.30` – `1.34` |
 | `0.2.x` | `>= 2.0.0` | `1.3.9` | `1.30` – `1.34` |
@@ -72,7 +72,7 @@ provider itself is covered under [Installation](#installation).
 | Pod scheduling | ✅ | Per-component `schedulingPolicy` (affinity, tolerations, node selector, topology spread, scheduler); not applied to bundled dependencies |
 | Pod customization | ✅ | Per-component `parameters.pod`: annotations, env, volumes, volume mounts, container security context, init containers |
 | Monitoring | ✅ | Native metrics endpoints of every Milvus component, published in `status.monitoring.sources` for monitoring extensions (`spec.monitoring.destinations`) or your own scraper |
-| Health checks | ✅ | `Ready` needs Milvus and its etcd, object storage and message stream healthy; reduced redundancy is reported in `status.message`; per-component probe tuning via `parameters.probes` |
+| Health checks | ✅ | `Ready` needs Milvus and its etcd, object storage and message stream healthy and every pod ready; `Available` stays `True` through rollouts and reduced redundancy; per-component probe tuning via `parameters.probes` |
 | TLS | ✅ | gRPC and REST over TLS via `spec.parameters.tls`, with a generated certificate, your own, or one from a cert-manager issuer; no mutual TLS or TLS between Milvus components yet |
 
 Stateful workloads additionally report:
@@ -479,13 +479,24 @@ spec:
 
 ### Check health
 
-The instance is `Ready` only when Milvus is healthy and the operator's checks
-on etcd, object storage and the message stream pass; otherwise
-`status.message` names the failing check. A `Ready` instance with pods missing
-(Milvus components or the bundled etcd, MinIO and Pulsar) stays `Ready` and
-lists them, e.g. `serving with reduced redundancy: etcd 2/3 ready, queryNode 1/2 ready`;
-once any of them has no ready pod at all the instance leaves `Ready`
-(`Milvus is unavailable: ...`).
+The provider reports what it observes about Milvus; OpenEverest turns that into
+the `Instance`'s conditions, the same way for every provider. `status.phase` is
+only `Pending` (never served clients), `Provisioned` or `Terminating`: gate on
+the conditions instead, e.g. `kubectl wait --for=condition=Ready instance/<name>`.
+
+| Fact | How this provider determines it |
+|---|---|
+| **Converged** (`Ready`) | The operator reports Milvus `Healthy` for the latest spec (read past the cache), no rollout is pending, the checks on etcd, object storage and the message stream pass, every Milvus component and bundled dependency (etcd, MinIO, Pulsar) has all its pods ready, the client endpoint is resolved and no restore runs. Until then the `Ready` message says what is waited for, e.g. `serving with reduced redundancy: etcd 2/3 ready, queryNode 1/2 ready`. |
+| **Available** | `True` while Milvus is `Healthy` with a resolved endpoint and every workload has a ready pod, including during a rollout or a restore. `False` with `ComponentsNotReady` (a workload has no ready pod), `EndpointPending` (no load balancer or NodePort address yet) or `Stopped`; `Unknown` with `DependencyNotReady` when an operator check on a dependency fails. |
+| **Problems** | `StoppedOutsideOpenEverest`: the operator reports the Milvus CR stopped, which an `Instance` cannot ask for. |
+| **Operations** | `Upgrading` (`UpgradingVersion`) while the operator rolls out a new Milvus image; `Restoring` (`RestoringBackup`) while a `Restore` into the instance runs. OpenEverest reports the seeding of a new instance from `spec.dataSource` itself. |
+| **Connection details** | Published once clients can connect, and kept current while a change rolls out or a restore runs; not before the seeding of a new instance has finished. |
+| **Desired pods** per component | `replicas` (default 1), or the sum of the component's `groups`; left out for an autoscaled component. |
+
+The operator records the image it runs only once every component is ready and
+updated, so `Upgrading` covers the instance-wide version; a version pinned on
+one component rolls out as a plain change.
+
 Per-component pod counts are in `status.components`.
 
 Milvus containers get the operator's startup, liveness and readiness probes on
@@ -775,15 +786,15 @@ kubectl logs -n everest-system deploy/provider-milvus -f
 
 | Symptom | Where to look |
 |---|---|
-| `Instance` stuck in `Creating` | `kubectl describe instance <name>` conditions, then the provider logs |
+| `Instance` stuck in `Creating`, or `Stalled` | `kubectl describe instance <name>` conditions, then the provider logs |
 | No `Provider` resource in the cluster | Is the chart installed? Check the provider deployment logs |
 | `Instance` ignored entirely | `spec.providerRef.name` must be `milvus` |
 | Operator resource created but no pods | Inspect the operator's custom resource status — the failure is upstream |
 | A spec change has no effect | The provider held it; the `Ready` condition of the `Instance` gives the reason and the field |
 | Restore refused | Restores need Milvus 2.6.12 or newer on the target instance |
-| `Instance` leaves `Ready` with `a Milvus dependency is not ready` | etcd, object storage or the message stream is unreachable; the message carries the operator's check result |
-| `Instance` leaves `Ready` with `Milvus is unavailable` | A Milvus component or bundled dependency has no ready pod; `kubectl get pods` in the instance namespace |
-| `Ready` with `serving with reduced redundancy` | Some pods are not ready; the message lists each workload as ready/desired, e.g. `etcd 2/3 ready` |
+| `Ready` is `False` with `a Milvus dependency is not ready` | etcd, object storage or the message stream is unreachable; the message carries the operator's check result |
+| `Available` is `False` with `ComponentsNotReady` | A Milvus component or bundled dependency has no ready pod; `kubectl get pods` in the instance namespace |
+| `Ready` is `False` with `serving with reduced redundancy` | Clients still connect, but some pods are not ready; the message lists each workload as ready/desired, e.g. `etcd 2/3 ready` |
 | Volumes left behind after delete | The bundled etcd, MinIO and Pulsar PVCs are deleted with the instance; a StorageClass with `reclaimPolicy: Retain` keeps the underlying volumes. Pick a `Delete` class with `dependencies.storageClassName` when the cluster default retains |
 
 ## Contributing

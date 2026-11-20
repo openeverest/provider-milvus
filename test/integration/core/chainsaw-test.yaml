@@ -39,7 +39,7 @@ spec:
             file: 10-assert.yaml
 
     # Simulate the Milvus operator (scaled to 0) marking the CR Healthy and
-    # caught up with its spec. The provider then surfaces phase Ready and
+    # caught up with its spec. The Instance then turns Ready and the provider
     # writes the connection Secret.
     - name: instance-ready
       try:
@@ -100,8 +100,7 @@ spec:
               metadata:
                 name: test-instance
               status:
-                phase: Ready
-                (message == null || message == ''): true
+                (conditions[?type == 'Ready'].status | [0]): "True"
 
     - name: expose-node-port
       try:

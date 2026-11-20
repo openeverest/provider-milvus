@@ -27,8 +27,8 @@ concurrency:
 env:
   IMG: provider-milvus:ci
   # Ref of openeverest/openeverest to build the platform and take the CRDs
-  # from: main until the core release this provider needs ships.
-  OPENEVEREST_BRANCH: main
+  # from: the core release go.mod pins.
+  OPENEVEREST_BRANCH: v2.0.0-alpha.1
 
 jobs:
   e2e:

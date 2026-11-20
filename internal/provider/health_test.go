@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	corev1alpha1 "github.com/openeverest/openeverest/v2/api/core/v1alpha1"
+	"github.com/openeverest/openeverest/v2/provider-runtime/controller"
 
 	"github.com/openeverest/provider-milvus/internal/milvusapi"
 )
@@ -54,8 +55,10 @@ func TestStatusRequiresHealthyDependencies(t *testing.T) {
 
 	status, err := New().Status(c)
 	require.NoError(t, err)
-	assert.Equal(t, corev1alpha1.InstancePhaseProvisioning, status.Phase)
+	assert.False(t, status.Converged)
 	assert.Equal(t, "a Milvus dependency is not ready: StorageReady: dial tcp: connection refused", status.Message)
+	assert.Equal(t, controller.AvailabilityUnknown, status.Available)
+	assert.Equal(t, reasonDependencyNotReady, status.AvailableReason)
 }
 
 func TestStatusReportsReducedRedundancy(t *testing.T) {
@@ -76,7 +79,9 @@ func TestStatusReportsReducedRedundancy(t *testing.T) {
 
 	status, err := New().Status(c)
 	require.NoError(t, err)
-	assert.Equal(t, corev1alpha1.InstancePhaseReady, status.Phase)
+	// Clients still connect, but Milvus does not run every pod it asks for.
+	assert.False(t, status.Converged)
+	assert.Equal(t, controller.Available, status.Available)
 	assert.Equal(t, "serving with reduced redundancy: etcd 2/3 ready, pulsar-bookie 1/2 ready, queryNode 1/2 ready", status.Message)
 	assert.Equal(t, "http://"+testEndpoint, status.ConnectionDetails.URI)
 }
@@ -89,7 +94,8 @@ func TestStatusReadyWithoutMessageWhenFullyReady(t *testing.T) {
 
 	status, err := New().Status(c)
 	require.NoError(t, err)
-	assert.Equal(t, corev1alpha1.InstancePhaseReady, status.Phase)
+	assert.True(t, status.Converged)
+	assert.Equal(t, controller.Available, status.Available)
 	assert.Empty(t, status.Message)
 }
 
@@ -103,8 +109,11 @@ func TestStatusWorkloadWithoutReadyPodsIsNotReady(t *testing.T) {
 
 	status, err := New().Status(c)
 	require.NoError(t, err)
-	assert.Equal(t, corev1alpha1.InstancePhaseProvisioning, status.Phase)
+	assert.False(t, status.Converged)
+	assert.Equal(t, controller.Unavailable, status.Available)
+	assert.Equal(t, reasonComponentsNotReady, status.AvailableReason)
 	assert.Equal(t, "Milvus is unavailable: etcd 2/3 ready, standalone 0/1 ready", status.Message)
+	assert.True(t, status.ConnectionDetails.IsEmpty())
 }
 
 func TestEnqueueDependencyInstance(t *testing.T) {
@@ -124,4 +133,41 @@ func TestEnqueueDependencyInstance(t *testing.T) {
 			assert.Equal(t, tt.want, enqueueDependencyInstance(context.Background(), obj))
 		})
 	}
+}
+
+// The runtime reports the seeding itself; clients get the connection details
+// only once it has finished.
+func TestStatusWhileSeeding(t *testing.T) {
+	c := newTestContext(t, corev1alpha1.InstanceSpec{})
+	require.NoError(t, c.Client().Create(context.Background(), newMilvusCR(milvusapi.StatusHealthy, testEndpoint)))
+	c.SetDataSourceStatus(controller.DataSourceStatus{State: controller.DataSourceStateRestoring, Message: "restoring backup b1"})
+
+	status, err := New().Status(c)
+	require.NoError(t, err)
+	assert.False(t, status.Converged)
+	assert.Equal(t, "restoring backup b1", status.Message)
+	assert.Empty(t, status.Operations)
+	assert.True(t, status.ConnectionDetails.IsEmpty())
+}
+
+// Standalone Milvus is recreated on a change: while its only pod is replaced,
+// clients cannot connect even though the operator still says Healthy.
+func TestStatusRolloutWithoutReadyPodsIsUnavailable(t *testing.T) {
+	c := newTestContext(t, corev1alpha1.InstanceSpec{})
+	cr := newMilvusCR(milvusapi.StatusHealthy, testEndpoint)
+	cr.Spec.Com.Image, cr.Status.CurrentImage = "milvusdb/milvus:v2.6.27", "milvusdb/milvus:v2.6.25"
+	cr.Status.Conditions = []milvusapi.MilvusCondition{{
+		Type: milvusapi.ConditionMilvusUpdated, Status: corev1.ConditionFalse, Message: "Milvus is performing rolling upgrade",
+	}}
+	require.NoError(t, c.Client().Create(context.Background(), cr))
+	require.NoError(t, c.Client().Create(context.Background(), milvusDeployment("test-milvus-milvus-standalone", "standalone", 1, 0)))
+
+	status, err := New().Status(c)
+	require.NoError(t, err)
+	assert.False(t, status.Converged)
+	assert.Equal(t, controller.Unavailable, status.Available)
+	assert.Equal(t, reasonComponentsNotReady, status.AvailableReason)
+	assert.True(t, status.ConnectionDetails.IsEmpty())
+	require.Len(t, status.Operations, 1)
+	assert.Equal(t, corev1alpha1.ConditionUpgrading, status.Operations[0].Type)
 }

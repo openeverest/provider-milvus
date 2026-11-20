@@ -5,15 +5,21 @@ log() { echo "[$(date +%H:%M:%S)] $*"; }
 fail() { log "FAIL: $*"; kubectl -n "$NAMESPACE" get instance,milvus,pods -o wide || true; exit 1; }
 
 wait_ready() {
-  local instance=$1 phase message
+  local instance=$1 state
+  # Ready counts only once the status is about the current generation. A
+  # stalled Instance may still recover, so it is only reported on timeout.
   for _ in $(seq $((READY_TIMEOUT / 10))); do
-    phase=$(kubectl -n "$NAMESPACE" get instance "$instance" -o jsonpath='{.status.phase}')
-    [[ "$phase" == "Ready" ]] && return 0
-    [[ "$phase" == "Failed" ]] && fail "$instance is Failed"
+    state=$(kubectl -n "$NAMESPACE" get instance "$instance" -o json | jq -r '
+      (.status.conditions // []) as $c
+      | def cond($t): ([$c[] | select(.type == $t)][0] // {});
+      if (.status.observedGeneration // 0) < .metadata.generation then "stale"
+      elif cond("Ready").status == "True" then "ready"
+      elif cond("Stalled").status == "True" then "stalled: \(cond("Ready").reason): \(cond("Ready").message)"
+      else "waiting: \(cond("Ready").reason // "-"): \(cond("Ready").message // "")" end')
+    [[ "$state" == "ready" ]] && return 0
     sleep 10
   done
-  message=$(kubectl -n "$NAMESPACE" get instance "$instance" -o jsonpath='{.status.message}')
-  fail "$instance not Ready after ${READY_TIMEOUT}s (phase=$phase, message=$message)"
+  fail "$instance not Ready after ${READY_TIMEOUT}s ($state)"
 }
 
 check_components() {

@@ -153,8 +153,7 @@ func validateTransition(in, old *corev1alpha1.Instance, providerSpec *corev1alph
 // error, never reached Milvus, so reverting it is no transition; the running
 // instance is checked at reconcile time instead.
 func specApplied(in *corev1alpha1.Instance) bool {
-	if in.Status.Phase == "" || in.Status.Phase == corev1alpha1.InstancePhasePending ||
-		in.Status.ObservedGeneration < in.Generation {
+	if in.Status.ObservedGeneration == 0 || in.Status.ObservedGeneration < in.Generation {
 		return false
 	}
 	ready := meta.FindStatusCondition(in.Status.Conditions, corev1alpha1.ConditionReady)

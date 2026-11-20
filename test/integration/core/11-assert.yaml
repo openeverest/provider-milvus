@@ -1,19 +1,22 @@
 # Expected outcome of the instance-ready step: once the Milvus CR reports
-# Healthy, the provider's Status() must surface phase Ready on the Instance and
-# publish connection details (including the generated root credential and a
+# Healthy, the Instance is Ready and Available, and the provider publishes
+# connection details (including the generated root credential and a
 # ready-to-use token) to the connection Secret.
 apiVersion: core.openeverest.io/v1alpha1
 kind: Instance
 metadata:
   name: test-instance
 status:
-  phase: Ready
+  phase: Provisioned
+  (conditions[?type == 'Ready'].status | [0]): "True"
+  (conditions[?type == 'Available'].status | [0]): "True"
   # The Milvus operator is scaled to 0, so the component has no pods.
   components:
     - name: standalone
       selector: core.openeverest.io/component=standalone,core.openeverest.io/instance=test-instance
       replicas: 0
       readyReplicas: 0
+      desiredReplicas: 1
 ---
 apiVersion: v1
 kind: Secret

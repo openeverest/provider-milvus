@@ -535,11 +535,14 @@ func TestStatusReportsRestoring(t *testing.T) {
 
 	status, err := New().Status(c)
 	require.NoError(t, err)
-	assert.Equal(t, corev1alpha1.InstancePhaseRestoring, status.Phase)
+	assert.False(t, status.Converged)
+	assert.Equal(t, []controller.Operation{{
+		Type: corev1alpha1.ConditionRestoring, Reason: reasonRestoringBackup, Message: "a restore is running",
+	}}, status.Operations)
 
 	restore.Status.State = backupv1alpha1.RestoreStateSucceeded
 	require.NoError(t, c.Client().Update(context.Background(), restore))
 	status, err = New().Status(c)
 	require.NoError(t, err)
-	assert.NotEqual(t, corev1alpha1.InstancePhaseRestoring, status.Phase)
+	assert.Empty(t, status.Operations)
 }

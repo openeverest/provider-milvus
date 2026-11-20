@@ -162,7 +162,6 @@ func TestValidateTransition(t *testing.T) {
 
 	tests := map[string]struct {
 		old, in   corev1alpha1.InstanceSpec
-		oldPhase  corev1alpha1.InstancePhase
 		oldStatus func(*corev1alpha1.Instance)
 		wantField string
 	}{
@@ -249,16 +248,15 @@ func TestValidateTransition(t *testing.T) {
 		},
 		"anything goes before the instance is created": {
 			old: standaloneWith(standalone.StandaloneDependencies{}), in: clusterWith(cluster.ClusterDependencies{}),
-			oldPhase: corev1alpha1.InstancePhasePending,
+			oldStatus: func(old *corev1alpha1.Instance) {
+				old.Status.ObservedGeneration = 0
+			},
 		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			old := newInstance(tt.old)
-			old.Status.Phase = corev1alpha1.InstancePhaseReady
-			if tt.oldPhase != "" {
-				old.Status.Phase = tt.oldPhase
-			}
+			old.Generation, old.Status.ObservedGeneration = 1, 1
 			if tt.oldStatus != nil {
 				tt.oldStatus(old)
 			}

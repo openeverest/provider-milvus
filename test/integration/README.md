@@ -53,7 +53,7 @@ directories (e.g. `backup/`, `monitoring/`) and wire each one to its own
   *provider's* translation and status logic, not the operator itself.
 - **Assert both directions** — after applying an `Instance`, assert the
   operator-native CR spec the provider must produce; after patching the
-  operator CR status, assert the `Instance` reaches `phase: Running`.
+  operator CR status, assert the `Instance`'s `Ready` and `Available` conditions.
 - **Collect diagnostics on failure** — use the `catch` block in
   `chainsaw-test.yaml` to dump relevant resources and provider logs.
 

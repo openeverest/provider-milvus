@@ -7,7 +7,7 @@ metadata:
 spec:
   version: "2.6.25"
 status:
-  (phase != 'Failed'): true
+  (conditions[?type == 'Stalled'].status | [0] != 'True'): true
 ---
 apiVersion: milvus.io/v1beta1
 kind: Milvus

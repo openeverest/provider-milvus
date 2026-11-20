@@ -5,4 +5,5 @@ kind: Instance
 metadata:
   name: from-preset
 status:
-  phase: Ready
+  phase: Provisioned
+  (conditions[?type == 'Ready'].status | [0]): "True"

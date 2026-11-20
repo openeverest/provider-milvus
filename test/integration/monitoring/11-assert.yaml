@@ -5,7 +5,7 @@ kind: Instance
 metadata:
   name: monitoring
 status:
-  phase: Ready
+  (conditions[?type == 'Ready'].status | [0]): "True"
   monitoring:
     (destinations[?name == 'metrics'] | [0]):
       mode: ExtensionManaged
