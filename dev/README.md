@@ -66,6 +66,8 @@ All settings live in `dev/.env` (see `dev/.env.example`). Common options:
 |----------|---------|-------------|
 | `INSTALL_OPENEVEREST` | `true` | Install the released OpenEverest core. |
 | `OPENEVEREST_VERSION` | `>=2.0.0-0 <3.0.0` | Pin a specific core chart version. |
+| `OPENEVEREST_CHART_DIR` | _(unset)_ | Install a local core chart (e.g. `../helm-charts/charts/everest`, relative to the repository root) instead of the released one. |
+| `OPENEVEREST_IMAGE` | _(unset)_ | Core image (`repository:tag`) to run instead of the chart's. |
 | `PROVIDER_NAMESPACE` | `default` | Namespace for the provider + operator. |
 | `ENABLE_MINIO` | `false` | Deploy MinIO + a `BackupStorage` CR for backups. |
 | `K8S_CONTEXT` | _(unset)_ | Restrict Tilt to a specific Kubernetes context. |
@@ -75,6 +77,26 @@ All settings live in `dev/.env` (see `dev/.env.example`). Common options:
 > Helm's default "latest" resolution skips — it would install v1, whose CRDs a v2
 > provider cannot use. `OPENEVEREST_VERSION` therefore defaults to a constraint
 > rather than being empty. Override it to pin an exact version.
+
+## Developing against an unreleased core
+
+To test against core `main` without building it, install the core chart from
+an [openeverest/helm-charts](https://github.com/openeverest/helm-charts)
+checkout and run the image core's CI publishes from `main` (amd64 only). From
+the repository root:
+
+```bash
+git clone https://github.com/openeverest/helm-charts ../helm-charts
+helm repo add percona https://percona.github.io/percona-helm-charts
+helm dependency build ../helm-charts/charts/everest
+OPENEVEREST_CHART_DIR=../helm-charts/charts/everest \
+OPENEVEREST_IMAGE=ghcr.io/openeverest/openeverest-dev:0.0.0 \
+  tilt up -f dev/Tiltfile
+```
+
+The integration and e2e workflows build the core controller from the
+`OPENEVEREST_BRANCH` ref and install its CRDs; `make install-crds` alone
+installs the CRDs of the core version `go.mod` pins.
 
 ## Developing the core and the provider together
 

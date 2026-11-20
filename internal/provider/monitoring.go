@@ -10,8 +10,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	corev1alpha1 "github.com/openeverest/openeverest/v2/api/core/v1alpha1"
 	"github.com/openeverest/openeverest/v2/provider-runtime/controller"
 
 	"github.com/openeverest/provider-milvus/definition/monitoring"
@@ -32,9 +34,9 @@ type topologyMonitoring struct {
 	Monitoring *monitoring.Monitoring `json:"monitoring,omitempty"`
 }
 
-func prometheusParams(c *controller.Context) *monitoring.Prometheus {
+func prometheusParams(in *corev1alpha1.Instance) *monitoring.Prometheus {
 	var params topologyMonitoring
-	if !c.TryDecodeTopologyParameters(&params) || params.Monitoring == nil {
+	if !tryDecodeTopologyParameters(in, &params) || params.Monitoring == nil {
 		return nil
 	}
 	return params.Monitoring.Prometheus
@@ -48,38 +50,48 @@ func podMonitorName(instanceName string) string {
 	return instanceName + "-metrics"
 }
 
-// validateMonitoring rejects settings the PodMonitor CRD would refuse and an
-// enabled integration on a cluster without the Prometheus Operator.
-func validateMonitoring(c *controller.Context) error {
+// validateMonitoring rejects settings the PodMonitor CRD would refuse.
+func validateMonitoring(in *corev1alpha1.Instance) error {
 	var params topologyMonitoring
-	if err := decodeTopologyParametersIfPresent(c, &params); err != nil {
+	if err := decodeTopologyParametersIfPresent(in, &params); err != nil {
 		return err
 	}
 	if params.Monitoring == nil || !prometheusEnabled(params.Monitoring.Prometheus) {
 		return nil
 	}
+	path := topologyParametersPath.Child("monitoring", "prometheus")
 	prometheus := params.Monitoring.Prometheus
 	if prometheus.Interval != "" {
 		if _, err := model.ParseDuration(prometheus.Interval); err != nil {
-			return fmt.Errorf("monitoring.prometheus.interval %q is not a valid duration such as 30s or 1m", prometheus.Interval)
+			return fieldErrorf(path.Child("interval"), "monitoring.prometheus.interval %q is not a valid duration such as 30s or 1m", prometheus.Interval)
 		}
 	}
 	for key, value := range prometheus.PodMonitorLabels {
 		if errs := validation.IsQualifiedName(key); len(errs) > 0 {
-			return fmt.Errorf("monitoring.prometheus.podMonitorLabels key %q: %s", key, errs[0])
+			return fieldErrorf(path.Child("podMonitorLabels"), "monitoring.prometheus.podMonitorLabels key %q: %s", key, errs[0])
 		}
 		if errs := validation.IsValidLabelValue(value); len(errs) > 0 {
-			return fmt.Errorf("monitoring.prometheus.podMonitorLabels[%q] value %q: %s", key, value, errs[0])
+			return fieldErrorf(path.Child("podMonitorLabels").Key(key), "monitoring.prometheus.podMonitorLabels[%q] value %q: %s", key, value, errs[0])
 		}
+	}
+	return nil
+}
+
+// validateMonitoringReferences rejects an enabled integration on a cluster
+// without the Prometheus Operator.
+func validateMonitoringReferences(c *controller.Context) (field.ErrorList, error) {
+	if !prometheusEnabled(prometheusParams(c.Instance())) {
+		return nil, nil
 	}
 	podMonitorKind := monitoringv1.SchemeGroupVersion.WithKind(monitoringv1.PodMonitorsKind)
 	if _, err := c.Client().RESTMapper().RESTMapping(podMonitorKind.GroupKind(), podMonitorKind.Version); err != nil {
 		if meta.IsNoMatchError(err) {
-			return fmt.Errorf("prometheus monitoring requires the Prometheus Operator: the PodMonitor CRD (monitoring.coreos.com/v1) is not installed")
+			return field.ErrorList{invalid(topologyParametersPath.Child("monitoring", "prometheus", "enabled"),
+				"prometheus monitoring requires the Prometheus Operator: the PodMonitor CRD (monitoring.coreos.com/v1) is not installed")}, nil
 		}
-		return fmt.Errorf("look up the PodMonitor CRD: %w", err)
+		return nil, fmt.Errorf("look up the PodMonitor CRD: %w", err)
 	}
-	return nil
+	return nil, nil
 }
 
 // syncPodMonitor creates the PodMonitor that scrapes every Milvus component,
@@ -90,7 +102,7 @@ func syncPodMonitor(c *controller.Context) error {
 	}
 
 	name := podMonitorName(c.Name())
-	params := prometheusParams(c)
+	params := prometheusParams(c.Instance())
 	if !prometheusEnabled(params) {
 		err := c.Delete(&monitoringv1.PodMonitor{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: c.Namespace()}})
 		if err != nil && !meta.IsNoMatchError(err) {

@@ -2,9 +2,13 @@ package provider
 
 import (
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 
 	"golang.org/x/mod/semver"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+
+	corev1alpha1 "github.com/openeverest/openeverest/v2/api/core/v1alpha1"
 
 	"github.com/openeverest/openeverest/v2/provider-runtime/controller"
 
@@ -13,34 +17,62 @@ import (
 )
 
 // validateNoDowngrade rejects moving any component to an older Milvus
-// release. Milvus migrates its metadata forward on upgrade and an older binary
-// cannot be trusted to read it back.
-func validateNoDowngrade(c *controller.Context) error {
-	existing := &milvusapi.Milvus{}
-	if err := c.Get(existing, c.Name()); err != nil || existing.Spec.Mode == "" {
+// release than the Milvus CR runs. Milvus migrates its metadata forward on
+// upgrade and an older binary cannot be trusted to read it back.
+func validateNoDowngrade(existing *milvusapi.Milvus, desired milvusapi.MilvusSpec) field.ErrorList {
+	if existing.Spec.Mode == "" {
 		return nil
 	}
-	desired, err := BuildMilvusSpec(c)
-	if err != nil {
-		return err
-	}
-	current := componentVersions(existing.Spec.Com)
-	requested := componentVersions(desired.Com)
-	names := make([]string, 0, len(requested))
-	for name := range requested {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	for _, name := range names {
+	return downgrades(componentVersions(existing.Spec.Com), componentVersions(desired.Com))
+}
+
+// validateNoDowngradeTransition is validateNoDowngrade against the previous
+// Instance, for admission, both resolved through the Provider's catalog.
+func validateNoDowngradeTransition(in, old *corev1alpha1.Instance, providerSpec *corev1alpha1.ProviderSpec) field.ErrorList {
+	return downgrades(requestedVersions(old, providerSpec), requestedVersions(in, providerSpec))
+}
+
+// downgrades reports every component whose requested version is older than
+// its current one.
+func downgrades(current, requested map[string]string) field.ErrorList {
+	var errs field.ErrorList
+	for _, name := range slices.Sorted(maps.Keys(requested)) {
 		from, to := current[name], requested[name]
 		if !semver.IsValid("v"+from) || !semver.IsValid("v"+to) {
 			continue
 		}
 		if semver.Compare("v"+to, "v"+from) < 0 {
-			return fmt.Errorf("component %q cannot be downgraded from %s to %s; choose %s or newer", name, from, to, from)
+			errs = append(errs, field.Forbidden(componentsPath.Key(name).Child("version"),
+				fmt.Sprintf("component %q cannot be downgraded from %s to %s; choose %s or newer", name, from, to, from)))
 		}
 	}
-	return nil
+	return errs
+}
+
+// requestedVersions maps each Milvus component of the instance's topology to
+// the version the operator would run it at, as BuildMilvusSpec resolves it:
+// its own version, else its version in the instance's bundle, else the
+// bundle's name.
+func requestedVersions(in *corev1alpha1.Instance, providerSpec *corev1alpha1.ProviderSpec) map[string]string {
+	bundleName := controller.EffectiveVersionBundleName(providerSpec, in)
+	var bundle *corev1alpha1.VersionBundle
+	if bundleName != "" {
+		bundle, _ = controller.ResolveVersionBundle(providerSpec, bundleName)
+	}
+	versions := map[string]string{}
+	for _, name := range allowedComponentsForTopology(instanceTopology(in)) {
+		version := in.Spec.Components[name].Version
+		if version == "" && bundle != nil {
+			version = bundle.Components[name]
+		}
+		if version == "" {
+			version = bundleName
+		}
+		if version != "" {
+			versions[name] = operatorVersion(version)
+		}
+	}
+	return versions
 }
 
 // componentVersions maps each deployed component to the Milvus version the

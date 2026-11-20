@@ -452,8 +452,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -535,8 +536,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -1044,8 +1046,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -1127,8 +1130,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -1636,8 +1640,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -1719,8 +1724,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -2228,8 +2234,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -2311,8 +2318,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -2820,8 +2828,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -2903,8 +2912,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -3412,8 +3422,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -3495,8 +3506,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -4004,8 +4016,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -4087,8 +4100,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -4596,8 +4610,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -4679,8 +4694,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -5188,8 +5204,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -5271,8 +5288,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -5780,8 +5798,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -5863,8 +5882,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -6372,8 +6392,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -6455,8 +6476,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -6587,43 +6609,53 @@ spec:
           supportedFields:
             openAPIV3Schema:
               properties:
+                image: {}
                 replicas:
                   minimum: 1
                 resources: {}
                 schedulingPolicy: {}
+                version: {}
         mixCoord:
           supportedFields:
             openAPIV3Schema:
               properties:
+                image: {}
                 replicas:
                   minimum: 1
                 resources: {}
                 schedulingPolicy: {}
+                version: {}
         proxy:
           supportedFields:
             openAPIV3Schema:
               properties:
+                image: {}
                 replicas:
                   minimum: 1
                 resources: {}
                 schedulingPolicy: {}
                 service: {}
+                version: {}
         queryNode:
           supportedFields:
             openAPIV3Schema:
               properties:
+                image: {}
                 replicas:
                   minimum: 1
                 resources: {}
                 schedulingPolicy: {}
+                version: {}
         streamingNode:
           supportedFields:
             openAPIV3Schema:
               properties:
+                image: {}
                 replicas:
                   minimum: 1
                 resources: {}
                 schedulingPolicy: {}
+                version: {}
       parametersSchema:
         openAPIV3Schema:
           description: |-
@@ -7010,12 +7042,14 @@ spec:
           supportedFields:
             openAPIV3Schema:
               properties:
+                image: {}
                 replicas:
                   maximum: 1
                   minimum: 1
                 resources: {}
                 schedulingPolicy: {}
                 service: {}
+                version: {}
       parametersSchema:
         openAPIV3Schema:
           description: |-

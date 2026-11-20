@@ -119,7 +119,7 @@ func TestMilvusEngineConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := newTestContext(t, corev1alpha1.InstanceSpec{Components: tt.components})
-			got, err := milvusEngineConfig(c)
+			got, err := milvusEngineConfig(c.Instance())
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErr)

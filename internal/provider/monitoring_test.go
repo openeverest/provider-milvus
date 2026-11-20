@@ -155,7 +155,12 @@ func TestValidateMonitoring(t *testing.T) {
 			}
 			c := controller.NewContext(context.Background(), fake.NewClientBuilder().WithRESTMapper(mapper).Build(), instance, common.ProviderName)
 
-			err := validateMonitoring(c)
+			err := validateMonitoring(instance)
+			if err == nil {
+				errs, refErr := validateMonitoringReferences(c)
+				require.NoError(t, refErr)
+				err = errs.ToAggregate()
+			}
 			if tt.wantErr == "" {
 				assert.NoError(t, err)
 				return

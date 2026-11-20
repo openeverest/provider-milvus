@@ -10,7 +10,6 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -124,7 +123,7 @@ func makeMilvusComponent(c *controller.Context, name string, image milvusImage) 
 		Replicas: componentReplicasOrDefault(components, name, 1),
 	}
 	applySchedulingPolicy(&component.ComponentSpec, components[name].SchedulingPolicy)
-	params := componentParameters(c, name)
+	params := componentParameters(c.Instance(), name)
 	applyPodCustomization(&component, params.Pod)
 	applyAutoscaling(&component, params.Autoscaling)
 	applyProbes(&component.ComponentSpec, params.Probes)
@@ -176,8 +175,8 @@ func operatorVersion(version string) string {
 // parameters and deep-merges it into a single Values map. Milvus uses one shared
 // engine config (spec.config), so configuration provided on any component is
 // merged; components are processed in sorted name order for deterministic output.
-func milvusEngineConfig(c *controller.Context) (milvusapi.Values, error) {
-	instanceComponents := c.Instance().Spec.Components
+func milvusEngineConfig(in *corev1alpha1.Instance) (milvusapi.Values, error) {
+	instanceComponents := in.Spec.Components
 	names := make([]string, 0, len(instanceComponents))
 	for name := range instanceComponents {
 		names = append(names, name)
@@ -187,7 +186,7 @@ func milvusEngineConfig(c *controller.Context) (milvusapi.Values, error) {
 	merged := milvusapi.Values{}
 	for _, name := range names {
 		var params components.MilvusParameters
-		if !c.TryDecodeComponentParameters(instanceComponents[name], &params) || params.Configuration == "" {
+		if decodeRaw(instanceComponents[name].Parameters, &params) != nil || params.Configuration == "" {
 			continue
 		}
 		parsed := map[string]any{}
@@ -294,7 +293,7 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 		},
 	}
 
-	engineConfig, err := milvusEngineConfig(c)
+	engineConfig, err := milvusEngineConfig(c.Instance())
 	if err != nil {
 		return milvusapi.MilvusSpec{}, err
 	}
@@ -302,10 +301,10 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 		engineConfig = withActiveStandbyDefaults(engineConfig)
 	}
 	spec.Conf = engineConfig
-	storageParam := storageDependencyParam(c, topologyType)
+	storageParam := storageDependencyParam(c.Instance(), topologyType)
 	for _, dependencyConfig := range []milvusapi.Values{
 		externalStorageConfig(storageParam),
-		externalEtcdConfig(etcdDependencyParam(c, topologyType)),
+		externalEtcdConfig(etcdDependencyParam(c.Instance(), topologyType)),
 	} {
 		if dependencyConfig == nil {
 			continue
@@ -350,28 +349,6 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 	applyImageUpdateMode(&spec.Com)
 
 	return spec, nil
-}
-
-// Validate has no rules of its own: the provider's rules read the deployed
-// Milvus and the cluster, so they run in ValidateReferences.
-func (p *Provider) Validate(controller.ValidationInput) controller.ValidationResult {
-	return controller.ValidationResult{}
-}
-
-// ValidateReferences runs the provider's rules before every Sync and reports
-// a rejection on spec.
-func (p *Provider) ValidateReferences(c *controller.Context) (field.ErrorList, error) {
-	l := log.FromContext(c.Context())
-	l.Info("Validating instance", "name", c.Name())
-
-	err := validateInstance(c)
-	if err == nil {
-		err = p.validateReplicaHostsScaleIn(c)
-	}
-	if err != nil {
-		return field.ErrorList{field.Invalid(field.NewPath("spec"), field.OmitValueType{}, err.Error())}, nil
-	}
-	return nil, nil
 }
 
 // Sync ensures all required resources exist and are configured correctly.
