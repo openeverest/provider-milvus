@@ -1,0 +1,17 @@
+# The PodMonitor a release before the monitoring contract created for
+# monitoring.prometheus.enabled. The provider deletes it.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: monitoring-metrics
+  labels:
+    core.openeverest.io/instance: monitoring
+    core.openeverest.io/provider: milvus
+spec:
+  selector:
+    matchLabels:
+      core.openeverest.io/instance: monitoring
+      core.openeverest.io/provider: milvus
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics

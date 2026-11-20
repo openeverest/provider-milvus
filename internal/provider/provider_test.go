@@ -119,7 +119,7 @@ func TestMilvusEngineConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := newTestContext(t, corev1alpha1.InstanceSpec{Components: tt.components})
-			got, err := milvusEngineConfig(c)
+			got, err := milvusEngineConfig(c.Instance())
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErr)
@@ -541,46 +541,61 @@ func newMilvusCR(status milvusapi.MilvusHealthStatus, endpoint string) *milvusap
 }
 
 func TestProviderStatus(t *testing.T) {
-	t.Run("missing Milvus CR returns Provisioning", func(t *testing.T) {
+	t.Run("missing Milvus CR is a wait", func(t *testing.T) {
 		c := newTestContext(t, corev1alpha1.InstanceSpec{})
 
 		status, err := New().Status(c)
 		require.NoError(t, err)
-		assert.Equal(t, corev1alpha1.InstancePhaseProvisioning, status.Phase)
+		assert.False(t, status.Converged)
 		assert.Equal(t, "waiting for Milvus CR to be created", status.Message)
+		assert.Equal(t, []controller.ComponentReplicas{{Component: common.ComponentStandalone, Desired: 1}}, status.DesiredReplicas)
 	})
 
 	notReadyTests := []struct {
-		name        string
-		status      milvusapi.MilvusHealthStatus
-		wantPhase   corev1alpha1.InstancePhase
-		wantMessage string
+		name          string
+		status        milvusapi.MilvusHealthStatus
+		wantMessage   string
+		wantAvailable controller.Availability
+		wantProblems  []controller.Problem
 	}{
-		{name: "stopped", status: milvusapi.StatusStopped, wantPhase: corev1alpha1.InstancePhasePending, wantMessage: "Milvus is stopped"},
-		{name: "unhealthy", status: milvusapi.StatusUnhealthy, wantPhase: corev1alpha1.InstancePhaseProvisioning, wantMessage: "Milvus is unhealthy"},
-		{name: "pending", status: milvusapi.StatusPending, wantPhase: corev1alpha1.InstancePhaseProvisioning, wantMessage: "Milvus is being initialized or updated"},
-		{name: "deleting", status: milvusapi.StatusDeleting, wantPhase: corev1alpha1.InstancePhaseProvisioning, wantMessage: "Milvus is being initialized or updated"},
-		{name: "unknown", status: "Unknown", wantPhase: corev1alpha1.InstancePhaseProvisioning, wantMessage: "Milvus is initializing"},
+		{
+			name: "stopped", status: milvusapi.StatusStopped, wantMessage: "Milvus is stopped",
+			wantAvailable: controller.Unavailable,
+			wantProblems: []controller.Problem{{
+				Reason:  reasonStoppedOutsideOpenEverest,
+				Message: "the Milvus CR was stopped outside OpenEverest; start it again to serve clients",
+			}},
+		},
+		{name: "unhealthy", status: milvusapi.StatusUnhealthy, wantMessage: "Milvus is unhealthy"},
+		{name: "pending", status: milvusapi.StatusPending, wantMessage: "Milvus is being initialized or updated"},
+		{name: "deleting", status: milvusapi.StatusDeleting, wantMessage: "Milvus is being initialized or updated"},
+		{name: "unknown", status: "Unknown", wantMessage: "Milvus is initializing"},
 	}
 	for _, tt := range notReadyTests {
-		t.Run(tt.name+" status is not ready", func(t *testing.T) {
+		t.Run(tt.name+" status has not converged", func(t *testing.T) {
 			c := newTestContext(t, corev1alpha1.InstanceSpec{})
 			require.NoError(t, c.Client().Create(context.Background(), newMilvusCR(tt.status, "")))
 
 			status, err := New().Status(c)
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantPhase, status.Phase)
+			assert.False(t, status.Converged)
 			assert.Equal(t, tt.wantMessage, status.Message)
+			assert.Equal(t, tt.wantAvailable, status.Available)
+			assert.Equal(t, tt.wantProblems, status.Problems)
+			assert.True(t, status.ConnectionDetails.IsEmpty())
 		})
 	}
 
-	t.Run("healthy status is Ready with a connection URI", func(t *testing.T) {
+	t.Run("healthy status converged and available with a connection URI", func(t *testing.T) {
 		c := newTestContext(t, corev1alpha1.InstanceSpec{})
 		require.NoError(t, c.Client().Create(context.Background(), newMilvusCR(milvusapi.StatusHealthy, "my-endpoint.db.svc.cluster.local:19530")))
 
 		status, err := New().Status(c)
 		require.NoError(t, err)
-		assert.Equal(t, corev1alpha1.InstancePhaseReady, status.Phase)
+		assert.True(t, status.Converged)
+		assert.Empty(t, status.Message)
+		assert.Equal(t, controller.Available, status.Available)
+		assert.Empty(t, status.Operations)
 		assert.Equal(t, "http://my-endpoint.db.svc.cluster.local:19530", status.ConnectionDetails.URI)
 	})
 
@@ -611,7 +626,7 @@ func TestProviderStatus(t *testing.T) {
 		},
 	}
 	for _, tt := range rolloutTests {
-		t.Run("healthy status is Updating while "+tt.name, func(t *testing.T) {
+		t.Run("healthy status stays available while "+tt.name, func(t *testing.T) {
 			c := newTestContext(t, corev1alpha1.InstanceSpec{})
 			cr := newMilvusCR(milvusapi.StatusHealthy, "my-endpoint.db.svc.cluster.local:19530")
 			require.NoError(t, c.Client().Create(context.Background(), cr))
@@ -620,13 +635,46 @@ func TestProviderStatus(t *testing.T) {
 
 			status, err := New().Status(c)
 			require.NoError(t, err)
-			assert.Equal(t, corev1alpha1.InstancePhaseUpdating, status.Phase)
+			assert.False(t, status.Converged)
+			assert.Equal(t, controller.Available, status.Available)
 			assert.Equal(t, tt.wantMessage, status.Message)
 			assert.Equal(t, "http://my-endpoint.db.svc.cluster.local:19530", status.ConnectionDetails.URI)
 		})
 	}
 
-	t.Run("unhealthy status is Updating while a rollout replaces pods", func(t *testing.T) {
+	t.Run("a new image rolling out is an upgrade", func(t *testing.T) {
+		c := newTestContext(t, corev1alpha1.InstanceSpec{})
+		cr := newMilvusCR(milvusapi.StatusHealthy, testEndpoint)
+		cr.Spec.Com.Image, cr.Spec.Com.Version = "milvusdb/milvus:v2.6.27", "2.6.27"
+		cr.Status.CurrentImage, cr.Status.CurrentVersion = "milvusdb/milvus:v2.6.25", "2.6.25"
+		cr.Status.Conditions = []milvusapi.MilvusCondition{{
+			Type: milvusapi.ConditionMilvusUpdated, Status: corev1.ConditionFalse, Message: "Milvus is performing rolling upgrade",
+		}}
+		require.NoError(t, c.Client().Create(context.Background(), cr))
+
+		status, err := New().Status(c)
+		require.NoError(t, err)
+		assert.False(t, status.Converged)
+		assert.Equal(t, controller.Available, status.Available)
+		assert.Equal(t, []controller.Operation{{
+			Type: corev1alpha1.ConditionUpgrading, Reason: reasonUpgradingVersion, Message: "upgrading Milvus from 2.6.25 to 2.6.27",
+		}}, status.Operations)
+	})
+
+	t.Run("a converged Milvus whose current image lags is not upgrading", func(t *testing.T) {
+		c := newTestContext(t, corev1alpha1.InstanceSpec{})
+		cr := newMilvusCR(milvusapi.StatusHealthy, testEndpoint)
+		cr.Spec.Com.Image = "milvusdb/milvus:v2.6.27"
+		cr.Status.CurrentImage = "milvusdb/milvus:v2.6.25"
+		require.NoError(t, c.Client().Create(context.Background(), cr))
+
+		status, err := New().Status(c)
+		require.NoError(t, err)
+		assert.True(t, status.Converged)
+		assert.Empty(t, status.Operations)
+	})
+
+	t.Run("unhealthy status is a wait while a rollout replaces pods", func(t *testing.T) {
 		c := newTestContext(t, corev1alpha1.InstanceSpec{})
 		cr := newMilvusCR(milvusapi.StatusUnhealthy, "")
 		cr.Status.Conditions = []milvusapi.MilvusCondition{
@@ -637,11 +685,12 @@ func TestProviderStatus(t *testing.T) {
 
 		status, err := New().Status(c)
 		require.NoError(t, err)
-		assert.Equal(t, corev1alpha1.InstancePhaseUpdating, status.Phase)
+		assert.False(t, status.Converged)
+		assert.Empty(t, status.Problems)
 		assert.Equal(t, "Milvus is performing rolling upgrade pending components[querynode]: MilvusReady: [querynode] not ready", status.Message)
 	})
 
-	t.Run("healthy status with an unresolved endpoint stays Provisioning", func(t *testing.T) {
+	t.Run("healthy status with an unresolved endpoint is unavailable", func(t *testing.T) {
 		c := newTestContext(t, corev1alpha1.InstanceSpec{})
 		cr := newMilvusCR(milvusapi.StatusHealthy, "")
 		cr.Spec.Com.Standalone = &milvusapi.MilvusStandalone{
@@ -651,6 +700,31 @@ func TestProviderStatus(t *testing.T) {
 
 		status, err := New().Status(c)
 		require.NoError(t, err)
-		assert.Equal(t, corev1alpha1.InstancePhaseProvisioning, status.Phase)
+		assert.False(t, status.Converged)
+		assert.Equal(t, controller.Unavailable, status.Available)
+		assert.Equal(t, reasonEndpointPending, status.AvailableReason)
+		assert.True(t, status.ConnectionDetails.IsEmpty())
 	})
+}
+
+func TestStatusDesiredReplicas(t *testing.T) {
+	autoscaled := runtime.RawExtension{Raw: []byte(`{"autoscaling":{"maxReplicas":5}}`)}
+	grouped := runtime.RawExtension{Raw: []byte(`{"groups":[{"name":"a","replicas":2},{"name":"b","replicas":3}]}`)}
+	c := newTestContext(t, corev1alpha1.InstanceSpec{
+		Topology: &corev1alpha1.TopologySpec{Type: "cluster"},
+		Components: map[string]corev1alpha1.ComponentSpec{
+			common.ComponentProxy:     {Replicas: ptr.To(int32(2))},
+			common.ComponentDataNode:  {Replicas: ptr.To(int32(5)), Parameters: &grouped},
+			common.ComponentQueryNode: {Replicas: ptr.To(int32(2)), Parameters: &autoscaled},
+		},
+	})
+
+	status, err := New().Status(c)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []controller.ComponentReplicas{
+		{Component: common.ComponentProxy, Desired: 2},
+		{Component: common.ComponentMixCoord, Desired: 1},
+		{Component: common.ComponentDataNode, Desired: 5},
+		{Component: common.ComponentStreaming, Desired: 1},
+	}, status.DesiredReplicas)
 }

@@ -97,7 +97,7 @@ func TestValidateProbes(t *testing.T) {
 				require.NoError(t, err)
 				return
 			}
-			assert.EqualError(t, err, tt.wantErr)
+			assert.EqualError(t, err, "spec.components[queryNode].parameters.probes: Invalid value: "+tt.wantErr)
 		})
 	}
 }

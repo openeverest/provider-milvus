@@ -1,0 +1,32 @@
+# Standalone Instance sending its metrics to the test destination. It still
+# carries the Prometheus parameter earlier releases wrote: deprecated,
+# accepted and ignored.
+apiVersion: core.openeverest.io/v1alpha1
+kind: Instance
+metadata:
+  name: monitoring
+spec:
+  providerRef:
+    name: milvus
+  topology:
+    type: standalone
+    parameters:
+      monitoring:
+        prometheus:
+          enabled: true
+          interval: 30s
+          podMonitorLabels:
+            release: kube-prometheus-stack
+  components:
+    standalone:
+      type: milvus
+      replicas: 1
+      resources:
+        limits:
+          cpu: "1"
+          memory: 2Gi
+  monitoring:
+    destinations:
+      - name: metrics
+        destinationRef:
+          name: metrics-it

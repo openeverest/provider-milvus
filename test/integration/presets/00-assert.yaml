@@ -1,0 +1,27 @@
+# The chart installs one ClusterInstancePreset per topology, on the default
+# version bundle.
+apiVersion: core.openeverest.io/v1alpha1
+kind: ClusterInstancePreset
+metadata:
+  name: milvus-standalone
+  labels:
+    app.kubernetes.io/component: preset
+spec:
+  providerRef:
+    name: milvus
+  version: "2.6.27"
+  topology:
+    type: standalone
+---
+apiVersion: core.openeverest.io/v1alpha1
+kind: ClusterInstancePreset
+metadata:
+  name: milvus-cluster
+  labels:
+    app.kubernetes.io/component: preset
+spec:
+  providerRef:
+    name: milvus
+  version: "2.6.27"
+  topology:
+    type: cluster

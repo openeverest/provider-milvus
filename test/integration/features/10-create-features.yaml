@@ -1,6 +1,6 @@
 # Cluster Instance exercising the per-component settings that are pure
 # translation onto the Milvus CR: engine configuration, pod customization,
-# deployment groups, probe tuning and Prometheus monitoring. Starts one
+# deployment groups and probe tuning. Starts one
 # version behind so the suite can upgrade it.
 apiVersion: core.openeverest.io/v1alpha1
 kind: Instance
@@ -12,13 +12,6 @@ spec:
   version: "2.6.15"
   topology:
     type: cluster
-    parameters:
-      monitoring:
-        prometheus:
-          enabled: true
-          interval: 30s
-          podMonitorLabels:
-            release: chainsaw
   components:
     proxy:
       type: milvus

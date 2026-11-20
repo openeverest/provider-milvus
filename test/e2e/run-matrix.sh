@@ -23,14 +23,16 @@ upgrade() {
   upgrade_to "$1" "$UPGRADE_VERSION"
 }
 
-# Validation errors do not reach the Instance status on every core release, so
-# check the deployments instead: they must stay on the upgraded version.
+# Admission refuses the downgrade, and the deployments stay on the upgraded
+# version.
 check_downgrade_rejected() {
-  local instance=$1
-  kubectl -n "$NAMESPACE" patch instance "$instance" --type merge -p "{\"spec\":{\"version\":\"$DOWNGRADE_VERSION\"}}"
-  sleep 30
+  local instance=$1 out
+  if out=$(kubectl -n "$NAMESPACE" patch instance "$instance" --type merge \
+    -p "{\"spec\":{\"version\":\"$DOWNGRADE_VERSION\"}}" 2>&1); then
+    fail "$instance accepted a downgrade to $DOWNGRADE_VERSION"
+  fi
+  grep -q "cannot be downgraded" <<<"$out" || fail "$instance downgrade refused for another reason: $out"
   check_images "$instance" "$UPGRADE_VERSION"
-  kubectl -n "$NAMESPACE" patch instance "$instance" --type merge -p "{\"spec\":{\"version\":\"$UPGRADE_VERSION\"}}"
 }
 
 check_spread() {
@@ -68,7 +70,8 @@ scale() {
   [[ $(milvus_replicas "$instance" "$component") == "$replicas" ]] || fail "$instance $component not scaled to $replicas"
 }
 
-# The rejected spec turns the Instance Failed; putting it back recovers it.
+# Admission only warns about the scale-in, as it reads the running Milvus; the
+# provider then holds the spec with InvalidReference until it is put back.
 check_scale_in_rejected() {
   local instance=$1
   set_replicas "$instance" queryNode 1

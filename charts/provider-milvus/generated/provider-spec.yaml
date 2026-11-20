@@ -4,6 +4,7 @@ spec:
   componentTypes:
     milvus:
       defaultVersion: 2.6.27
+      kind: milvus
       versions:
         - image: milvusdb/milvus:v2.6.27
           version: 2.6.27
@@ -452,8 +453,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -535,8 +537,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -1044,8 +1047,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -1127,8 +1131,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -1636,8 +1641,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -1719,8 +1725,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -2228,8 +2235,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -2311,8 +2319,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -2820,8 +2829,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -2903,8 +2913,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -3412,8 +3423,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -3495,8 +3507,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -4004,8 +4017,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -4087,8 +4101,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -4596,8 +4611,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -4679,8 +4695,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -5188,8 +5205,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -5271,8 +5289,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -5780,8 +5799,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -5863,8 +5883,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -6372,8 +6393,9 @@ spec:
                   type: array
                 initContainers:
                   description: InitContainers run before Milvus starts (Kubernetes Container objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
                 securityContext:
                   description: |-
                     SecurityContext is the Milvus container's security context (a Kubernetes
@@ -6455,8 +6477,9 @@ spec:
                   type: array
                 volumes:
                   description: Volumes are added to the pods (Kubernetes Volume objects).
+                  items:
+                    x-kubernetes-preserve-unknown-fields: true
                   type: array
-                  x-kubernetes-preserve-unknown-fields: true
               type: object
             probes:
               description: |-
@@ -6535,6 +6558,10 @@ spec:
           type: object
       type: milvus
   defaultVersion: 2.6.27
+  monitoring:
+    componentTypes:
+      milvus:
+        metrics: Native
   parametersSchema:
     openAPIV3Schema:
       description: |-
@@ -6587,43 +6614,53 @@ spec:
           supportedFields:
             openAPIV3Schema:
               properties:
+                image: {}
                 replicas:
                   minimum: 1
                 resources: {}
                 schedulingPolicy: {}
+                version: {}
         mixCoord:
           supportedFields:
             openAPIV3Schema:
               properties:
+                image: {}
                 replicas:
                   minimum: 1
                 resources: {}
                 schedulingPolicy: {}
+                version: {}
         proxy:
           supportedFields:
             openAPIV3Schema:
               properties:
+                image: {}
                 replicas:
                   minimum: 1
                 resources: {}
                 schedulingPolicy: {}
                 service: {}
+                version: {}
         queryNode:
           supportedFields:
             openAPIV3Schema:
               properties:
+                image: {}
                 replicas:
                   minimum: 1
                 resources: {}
                 schedulingPolicy: {}
+                version: {}
         streamingNode:
           supportedFields:
             openAPIV3Schema:
               properties:
+                image: {}
                 replicas:
                   minimum: 1
                 resources: {}
                 schedulingPolicy: {}
+                version: {}
       parametersSchema:
         openAPIV3Schema:
           description: |-
@@ -6981,25 +7018,27 @@ spec:
                   type: string
               type: object
             monitoring:
-              description: Monitoring configures metrics collection.
+              description: |-
+                Deprecated: Monitoring has no effect. It is accepted so Instances
+                written by earlier releases stay valid; spec.monitoring configures
+                where metrics go.
               properties:
                 prometheus:
-                  description: Prometheus configures scraping by the Prometheus Operator.
+                  description: |-
+                    Deprecated: Prometheus has no effect. The provider publishes its
+                    metrics endpoints in status.monitoring.sources.metrics; send them to a
+                    monitoring destination listed in spec.monitoring.destinations.
                   properties:
                     enabled:
-                      description: Enabled creates the PodMonitor; disabling it removes the PodMonitor.
+                      description: 'Deprecated: Enabled has no effect.'
                       type: boolean
                     interval:
-                      description: |-
-                        Interval between scrapes, e.g. 30s. Defaults to the Prometheus global
-                        scrape interval.
+                      description: 'Deprecated: Interval has no effect.'
                       type: string
                     podMonitorLabels:
                       additionalProperties:
                         type: string
-                      description: |-
-                        PodMonitorLabels are added to the PodMonitor so that the Prometheus
-                        podMonitorSelector picks it up (e.g. release: kube-prometheus-stack).
+                      description: 'Deprecated: PodMonitorLabels has no effect.'
                       type: object
                   type: object
               type: object
@@ -7010,12 +7049,14 @@ spec:
           supportedFields:
             openAPIV3Schema:
               properties:
+                image: {}
                 replicas:
                   maximum: 1
                   minimum: 1
                 resources: {}
                 schedulingPolicy: {}
                 service: {}
+                version: {}
       parametersSchema:
         openAPIV3Schema:
           description: |-
@@ -7195,25 +7236,27 @@ spec:
                   type: string
               type: object
             monitoring:
-              description: Monitoring configures metrics collection.
+              description: |-
+                Deprecated: Monitoring has no effect. It is accepted so Instances
+                written by earlier releases stay valid; spec.monitoring configures
+                where metrics go.
               properties:
                 prometheus:
-                  description: Prometheus configures scraping by the Prometheus Operator.
+                  description: |-
+                    Deprecated: Prometheus has no effect. The provider publishes its
+                    metrics endpoints in status.monitoring.sources.metrics; send them to a
+                    monitoring destination listed in spec.monitoring.destinations.
                   properties:
                     enabled:
-                      description: Enabled creates the PodMonitor; disabling it removes the PodMonitor.
+                      description: 'Deprecated: Enabled has no effect.'
                       type: boolean
                     interval:
-                      description: |-
-                        Interval between scrapes, e.g. 30s. Defaults to the Prometheus global
-                        scrape interval.
+                      description: 'Deprecated: Interval has no effect.'
                       type: string
                     podMonitorLabels:
                       additionalProperties:
                         type: string
-                      description: |-
-                        PodMonitorLabels are added to the PodMonitor so that the Prometheus
-                        podMonitorSelector picks it up (e.g. release: kube-prometheus-stack).
+                      description: 'Deprecated: PodMonitorLabels has no effect.'
                       type: object
                   type: object
               type: object
@@ -7292,20 +7335,18 @@ spec:
                   fieldParams:
                     defaultValue: 1
                     label: CPU
-                    step: 0.1
+                    unitLabel: CPU
                   path: spec.components.mixCoord.resources.limits.cpu
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 memory:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 2
                     label: RAM
-                    step: 0.1
+                    unit: Gi
                   path: spec.components.mixCoord.resources.limits.memory
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.5
               groupType: line
@@ -7361,20 +7402,18 @@ spec:
                   fieldParams:
                     defaultValue: 1
                     label: CPU
-                    step: 0.1
+                    unitLabel: CPU
                   path: spec.components.dataNode.resources.limits.cpu
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 memory:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 4
                     label: RAM
-                    step: 0.1
+                    unit: Gi
                   path: spec.components.dataNode.resources.limits.memory
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.5
               groupType: line
@@ -7406,20 +7445,18 @@ spec:
                           fieldParams:
                             defaultValue: 0.2
                             label: CPU
-                            step: 0.1
+                            unitLabel: CPU
                           path: spec.topology.parameters.dependencies.pulsar.bookkeeper.resources.requests.cpu
-                          uiType: number
+                          uiType: quantity
                           validation:
                             min: 0.1
                         memory:
                           fieldParams:
-                            badge: Gi
-                            badgeToApi: true
                             defaultValue: 0.5
                             label: RAM
-                            step: 0.1
+                            unit: Gi
                           path: spec.topology.parameters.dependencies.pulsar.bookkeeper.resources.requests.memory
-                          uiType: number
+                          uiType: quantity
                           validation:
                             min: 0.1
                       groupType: line
@@ -7428,26 +7465,32 @@ spec:
                       components:
                         journal:
                           fieldParams:
-                            badge: Gi
-                            badgeToApi: true
                             defaultValue: 5
                             label: Journal
+                            unit: Gi
                           path: spec.topology.parameters.dependencies.pulsar.bookkeeper.journal.size
-                          uiType: number
+                          uiType: quantity
                           validation:
-                            int: true
                             min: 1
+                            modes:
+                              edit:
+                                celExpressions:
+                                  - celExpr: '!has(original.spec.topology.parameters.dependencies.pulsar.bookkeeper.journal.size) || !has(spec.topology.parameters.dependencies.pulsar.bookkeeper.journal.size) || double(spec.topology.parameters.dependencies.pulsar.bookkeeper.journal.size) >= double(original.spec.topology.parameters.dependencies.pulsar.bookkeeper.journal.size)'
+                                    message: Storage size cannot be decreased
                         ledgers:
                           fieldParams:
-                            badge: Gi
-                            badgeToApi: true
                             defaultValue: 10
                             label: Ledgers
+                            unit: Gi
                           path: spec.topology.parameters.dependencies.pulsar.bookkeeper.ledgers.size
-                          uiType: number
+                          uiType: quantity
                           validation:
-                            int: true
                             min: 1
+                            modes:
+                              edit:
+                                celExpressions:
+                                  - celExpr: '!has(original.spec.topology.parameters.dependencies.pulsar.bookkeeper.ledgers.size) || !has(spec.topology.parameters.dependencies.pulsar.bookkeeper.ledgers.size) || double(spec.topology.parameters.dependencies.pulsar.bookkeeper.ledgers.size) >= double(original.spec.topology.parameters.dependencies.pulsar.bookkeeper.ledgers.size)'
+                                    message: Storage size cannot be decreased
                       groupType: line
                       uiType: group
                   componentsOrder:
@@ -7477,20 +7520,18 @@ spec:
                           fieldParams:
                             defaultValue: 0.2
                             label: CPU
-                            step: 0.1
+                            unitLabel: CPU
                           path: spec.topology.parameters.dependencies.pulsar.broker.resources.requests.cpu
-                          uiType: number
+                          uiType: quantity
                           validation:
                             min: 0.1
                         memory:
                           fieldParams:
-                            badge: Gi
-                            badgeToApi: true
                             defaultValue: 0.5
                             label: RAM
-                            step: 0.1
+                            unit: Gi
                           path: spec.topology.parameters.dependencies.pulsar.broker.resources.requests.memory
-                          uiType: number
+                          uiType: quantity
                           validation:
                             min: 0.1
                       groupType: line
@@ -7521,20 +7562,18 @@ spec:
                           fieldParams:
                             defaultValue: 0.1
                             label: CPU
-                            step: 0.1
+                            unitLabel: CPU
                           path: spec.topology.parameters.dependencies.pulsar.proxy.resources.requests.cpu
-                          uiType: number
+                          uiType: quantity
                           validation:
                             min: 0.1
                         memory:
                           fieldParams:
-                            badge: Gi
-                            badgeToApi: true
                             defaultValue: 0.25
                             label: RAM
-                            step: 0.1
+                            unit: Gi
                           path: spec.topology.parameters.dependencies.pulsar.proxy.resources.requests.memory
-                          uiType: number
+                          uiType: quantity
                           validation:
                             min: 0.1
                       groupType: line
@@ -7580,20 +7619,18 @@ spec:
                           fieldParams:
                             defaultValue: 0.1
                             label: CPU
-                            step: 0.1
+                            unitLabel: CPU
                           path: spec.topology.parameters.dependencies.pulsar.zookeeper.resources.requests.cpu
-                          uiType: number
+                          uiType: quantity
                           validation:
                             min: 0.1
                         memory:
                           fieldParams:
-                            badge: Gi
-                            badgeToApi: true
                             defaultValue: 0.25
                             label: RAM
-                            step: 0.1
+                            unit: Gi
                           path: spec.topology.parameters.dependencies.pulsar.zookeeper.resources.requests.memory
-                          uiType: number
+                          uiType: quantity
                           validation:
                             min: 0.1
                       groupType: line
@@ -7602,15 +7639,18 @@ spec:
                       components:
                         data:
                           fieldParams:
-                            badge: Gi
-                            badgeToApi: true
                             defaultValue: 5
                             label: Data
+                            unit: Gi
                           path: spec.topology.parameters.dependencies.pulsar.zookeeper.data.size
-                          uiType: number
+                          uiType: quantity
                           validation:
-                            int: true
                             min: 1
+                            modes:
+                              edit:
+                                celExpressions:
+                                  - celExpr: '!has(original.spec.topology.parameters.dependencies.pulsar.zookeeper.data.size) || !has(spec.topology.parameters.dependencies.pulsar.zookeeper.data.size) || double(spec.topology.parameters.dependencies.pulsar.zookeeper.data.size) >= double(original.spec.topology.parameters.dependencies.pulsar.zookeeper.data.size)'
+                                    message: Storage size cannot be decreased
                       groupType: line
                       uiType: group
                   componentsOrder:
@@ -7646,33 +7686,34 @@ spec:
                   fieldParams:
                     defaultValue: 0.1
                     label: CPU
-                    step: 0.1
+                    unitLabel: CPU
                   path: spec.topology.parameters.dependencies.etcd.resources.requests.cpu
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 memory:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 0.25
                     label: RAM
-                    step: 0.1
+                    unit: Gi
                   path: spec.topology.parameters.dependencies.etcd.resources.requests.memory
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 storage:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 10
                     label: Storage
+                    unit: Gi
                   path: spec.topology.parameters.dependencies.etcd.persistence.size
-                  uiType: number
+                  uiType: quantity
                   validation:
-                    int: true
                     min: 1
+                    modes:
+                      edit:
+                        celExpressions:
+                          - celExpr: '!has(original.spec.topology.parameters.dependencies.etcd.persistence.size) || !has(spec.topology.parameters.dependencies.etcd.persistence.size) || double(spec.topology.parameters.dependencies.etcd.persistence.size) >= double(original.spec.topology.parameters.dependencies.etcd.persistence.size)'
+                            message: Storage size cannot be decreased
               groupType: line
               uiType: group
           componentsOrder:
@@ -7680,18 +7721,6 @@ spec:
             - resources
           description: Configure the bundled metadata store.
           label: Metadata store
-        monitoring:
-          components:
-            prometheus:
-              fieldParams:
-                helperText: Creates a PodMonitor that scrapes every Milvus component. Requires the Prometheus Operator.
-                label: Prometheus
-              path: spec.topology.parameters.monitoring.prometheus.enabled
-              uiType: toggle
-          componentsOrder:
-            - prometheus
-          description: Collect Milvus metrics with Prometheus.
-          label: Monitoring
         objectStorage:
           components:
             replicas:
@@ -7709,33 +7738,34 @@ spec:
                   fieldParams:
                     defaultValue: 0.1
                     label: CPU
-                    step: 0.1
+                    unitLabel: CPU
                   path: spec.topology.parameters.dependencies.storage.resources.requests.cpu
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 memory:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 0.25
                     label: RAM
-                    step: 0.1
+                    unit: Gi
                   path: spec.topology.parameters.dependencies.storage.resources.requests.memory
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 storage:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 10
                     label: Storage
+                    unit: Gi
                   path: spec.topology.parameters.dependencies.storage.persistence.size
-                  uiType: number
+                  uiType: quantity
                   validation:
-                    int: true
                     min: 1
+                    modes:
+                      edit:
+                        celExpressions:
+                          - celExpr: '!has(original.spec.topology.parameters.dependencies.storage.persistence.size) || !has(spec.topology.parameters.dependencies.storage.persistence.size) || double(spec.topology.parameters.dependencies.storage.persistence.size) >= double(original.spec.topology.parameters.dependencies.storage.persistence.size)'
+                            message: Storage size cannot be decreased
               groupType: line
               uiType: group
           componentsOrder:
@@ -7802,20 +7832,18 @@ spec:
                   fieldParams:
                     defaultValue: 1
                     label: CPU
-                    step: 0.1
+                    unitLabel: CPU
                   path: spec.components.proxy.resources.limits.cpu
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 memory:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 2
                     label: RAM
-                    step: 0.1
+                    unit: Gi
                   path: spec.components.proxy.resources.limits.memory
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.5
               groupType: line
@@ -7873,20 +7901,18 @@ spec:
                   fieldParams:
                     defaultValue: 1
                     label: CPU
-                    step: 0.1
+                    unitLabel: CPU
                   path: spec.components.queryNode.resources.limits.cpu
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 memory:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 4
                     label: RAM
-                    step: 0.1
+                    unit: Gi
                   path: spec.components.queryNode.resources.limits.memory
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.5
               groupType: line
@@ -7913,20 +7939,18 @@ spec:
                   fieldParams:
                     defaultValue: 1
                     label: CPU
-                    step: 0.1
+                    unitLabel: CPU
                   path: spec.components.streamingNode.resources.limits.cpu
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 memory:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 2
                     label: RAM
-                    step: 0.1
+                    unit: Gi
                   path: spec.components.streamingNode.resources.limits.memory
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.5
               groupType: line
@@ -8007,7 +8031,6 @@ spec:
         - objectStorage
         - metadataStore
         - messageStream
-        - monitoring
         - tls
         - advanced
     standalone:
@@ -8083,33 +8106,34 @@ spec:
                   fieldParams:
                     defaultValue: 0.1
                     label: CPU
-                    step: 0.1
+                    unitLabel: CPU
                   path: spec.topology.parameters.dependencies.etcd.resources.requests.cpu
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 memory:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 0.25
                     label: RAM
-                    step: 0.1
+                    unit: Gi
                   path: spec.topology.parameters.dependencies.etcd.resources.requests.memory
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 storage:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 10
                     label: Storage
+                    unit: Gi
                   path: spec.topology.parameters.dependencies.etcd.persistence.size
-                  uiType: number
+                  uiType: quantity
                   validation:
-                    int: true
                     min: 1
+                    modes:
+                      edit:
+                        celExpressions:
+                          - celExpr: '!has(original.spec.topology.parameters.dependencies.etcd.persistence.size) || !has(spec.topology.parameters.dependencies.etcd.persistence.size) || double(spec.topology.parameters.dependencies.etcd.persistence.size) >= double(original.spec.topology.parameters.dependencies.etcd.persistence.size)'
+                            message: Storage size cannot be decreased
               groupType: line
               uiType: group
           componentsOrder:
@@ -8117,18 +8141,6 @@ spec:
             - resources
           description: Configure the bundled metadata store.
           label: Metadata store
-        monitoring:
-          components:
-            prometheus:
-              fieldParams:
-                helperText: Creates a PodMonitor that scrapes Milvus metrics. Requires the Prometheus Operator.
-                label: Prometheus
-              path: spec.topology.parameters.monitoring.prometheus.enabled
-              uiType: toggle
-          componentsOrder:
-            - prometheus
-          description: Collect Milvus metrics with Prometheus.
-          label: Monitoring
         objectStorage:
           components:
             replicas:
@@ -8146,33 +8158,34 @@ spec:
                   fieldParams:
                     defaultValue: 0.1
                     label: CPU
-                    step: 0.1
+                    unitLabel: CPU
                   path: spec.topology.parameters.dependencies.storage.resources.requests.cpu
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 memory:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 0.25
                     label: RAM
-                    step: 0.1
+                    unit: Gi
                   path: spec.topology.parameters.dependencies.storage.resources.requests.memory
-                  uiType: number
+                  uiType: quantity
                   validation:
                     min: 0.1
                 storage:
                   fieldParams:
-                    badge: Gi
-                    badgeToApi: true
                     defaultValue: 10
                     label: Storage
+                    unit: Gi
                   path: spec.topology.parameters.dependencies.storage.persistence.size
-                  uiType: number
+                  uiType: quantity
                   validation:
-                    int: true
                     min: 1
+                    modes:
+                      edit:
+                        celExpressions:
+                          - celExpr: '!has(original.spec.topology.parameters.dependencies.storage.persistence.size) || !has(spec.topology.parameters.dependencies.storage.persistence.size) || double(spec.topology.parameters.dependencies.storage.persistence.size) >= double(original.spec.topology.parameters.dependencies.storage.persistence.size)'
+                            message: Storage size cannot be decreased
               groupType: line
               uiType: group
           componentsOrder:
@@ -8186,9 +8199,9 @@ spec:
               fieldParams:
                 defaultValue: 1
                 label: CPU
-                step: 0.1
+                unitLabel: CPU
               path: spec.components.standalone.resources.limits.cpu
-              uiType: number
+              uiType: quantity
               validation:
                 min: 0.1
                 required: true
@@ -8207,13 +8220,11 @@ spec:
               uiType: select
             memory:
               fieldParams:
-                badge: Gi
-                badgeToApi: true
                 defaultValue: 4
                 label: Memory
-                step: 0.1
+                unit: Gi
               path: spec.components.standalone.resources.limits.memory
-              uiType: number
+              uiType: quantity
               validation:
                 min: 0.5
                 required: true
@@ -8285,7 +8296,6 @@ spec:
         - resources
         - objectStorage
         - metadataStore
-        - monitoring
         - tls
         - advanced
   versions:

@@ -219,6 +219,10 @@ type MilvusStatus struct {
 	Endpoint           string             `json:"endpoint,omitempty"`
 	Conditions         []MilvusCondition  `json:"conditions,omitempty"`
 	ObservedGeneration int64              `json:"observedGeneration,omitempty"`
+	// CurrentImage and CurrentVersion are spec.components.image and version
+	// as of the last time every component was ready and updated.
+	CurrentImage   string `json:"currentImage,omitempty"`
+	CurrentVersion string `json:"currentVersion,omitempty"`
 }
 
 // MilvusCondition is one readiness condition the operator reports.

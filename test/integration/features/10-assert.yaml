@@ -1,5 +1,5 @@
 # Expected outcome of the create-features step: every per-component setting
-# lands on the Milvus CR, and monitoring creates the provider's PodMonitor.
+# lands on the Milvus CR.
 apiVersion: milvus.io/v1beta1
 kind: Milvus
 metadata:
@@ -16,7 +16,8 @@ spec:
     image: milvusdb/milvus:v2.6.15
     version: 2.6.15
     imageUpdateMode: rollingUpgrade
-    # The provider owns the PodMonitor instead of the operator.
+    # Monitoring extensions scrape the published endpoints, not the
+    # operator's PodMonitor.
     disableMetric: true
     queryNode:
       replicas: 2
@@ -56,18 +57,3 @@ spec:
       (groups == null): true
   dependencies:
     msgStreamType: woodpecker
----
-apiVersion: monitoring.coreos.com/v1
-kind: PodMonitor
-metadata:
-  name: features-metrics
-  labels:
-    release: chainsaw
-spec:
-  selector:
-    matchLabels:
-      core.openeverest.io/instance: features
-      core.openeverest.io/provider: milvus
-  podMetricsEndpoints:
-    - port: metrics
-      interval: 30s

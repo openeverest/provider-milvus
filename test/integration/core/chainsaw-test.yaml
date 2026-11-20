@@ -39,7 +39,7 @@ spec:
             file: 10-assert.yaml
 
     # Simulate the Milvus operator (scaled to 0) marking the CR Healthy and
-    # caught up with its spec. The provider then surfaces phase Ready and
+    # caught up with its spec. The Instance then turns Ready and the provider
     # writes the connection Secret.
     - name: instance-ready
       try:
@@ -50,6 +50,23 @@ spec:
                 -p "{\"status\":{\"status\":\"Healthy\",\"observedGeneration\":$generation}}" --type=merge
         - assert:
             file: 11-assert.yaml
+
+    # The provider's admission webhook refuses an invalid Instance and a change
+    # the running one cannot take, naming the field.
+    - name: admission
+      try:
+        - script:
+            content: kubectl apply -n $NAMESPACE -f 14-invalid-instance.yaml
+            check:
+              ($error != null): true
+              (contains($stderr, 'spec.components[standalone].resources.limits.memory')): true
+        - script:
+            content: |
+              kubectl patch instance/test-instance -n $NAMESPACE --type=merge \
+                -p '{"spec":{"topology":{"parameters":{"dependencies":{"storage":{"persistence":{"size":"5Gi"}}}}}}}'
+            check:
+              ($error != null): true
+              (contains($stderr, 'spec.topology.parameters.dependencies.storage.persistence.size')): true
 
     # The operator's Healthy ignores its own etcd/storage/message stream
     # checks; the provider must not.
@@ -83,8 +100,7 @@ spec:
               metadata:
                 name: test-instance
               status:
-                phase: Ready
-                (message == null || message == ''): true
+                (conditions[?type == 'Ready'].status | [0]): "True"
 
     - name: expose-node-port
       try:

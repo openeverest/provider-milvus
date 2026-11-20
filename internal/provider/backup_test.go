@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -35,7 +34,7 @@ func fakeClientBuilder(t *testing.T) *fake.ClientBuilder {
 	scheme := runtime.NewScheme()
 	for _, add := range []func(*runtime.Scheme) error{
 		corev1alpha1.AddToScheme, corev1.AddToScheme, batchv1.AddToScheme, appsv1.AddToScheme,
-		backupv1alpha1.AddToScheme, milvusapi.AddToScheme, monitoringv1.AddToScheme,
+		backupv1alpha1.AddToScheme, milvusapi.AddToScheme,
 	} {
 		require.NoError(t, add(scheme))
 	}
@@ -536,11 +535,14 @@ func TestStatusReportsRestoring(t *testing.T) {
 
 	status, err := New().Status(c)
 	require.NoError(t, err)
-	assert.Equal(t, corev1alpha1.InstancePhaseRestoring, status.Phase)
+	assert.False(t, status.Converged)
+	assert.Equal(t, []controller.Operation{{
+		Type: corev1alpha1.ConditionRestoring, Reason: reasonRestoringBackup, Message: "a restore is running",
+	}}, status.Operations)
 
 	restore.Status.State = backupv1alpha1.RestoreStateSucceeded
 	require.NoError(t, c.Client().Update(context.Background(), restore))
 	status, err = New().Status(c)
 	require.NoError(t, err)
-	assert.NotEqual(t, corev1alpha1.InstancePhaseRestoring, status.Phase)
+	assert.Empty(t, status.Operations)
 }

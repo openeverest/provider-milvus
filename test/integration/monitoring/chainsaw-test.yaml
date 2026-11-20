@@ -1,0 +1,106 @@
+---
+# Monitoring contract suite for the Milvus provider.
+#
+# Core matches a metrics class to the provider (native metrics, no
+# disruption) and binds a standalone Instance that lists a destination of
+# it. The provider publishes every Milvus component's native endpoint in
+# Instance.status.monitoring.sources, deletes the PodMonitor earlier releases
+# created and creates none, and still accepts the deprecated Prometheus
+# parameter, with a warning. Dropping the entry deletes the binding and keeps
+# the endpoints. No extension controller runs here, so the class is claimed
+# by hand and the binding is never Configured; what the provider owns is
+# asserted. The Milvus operator is scaled to 0 in CI, so the suite marks the
+# Milvus CR Healthy in its place and scrapes the endpoint only where Milvus
+# pods run.
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: monitoring
+spec:
+  description: |
+    Native metrics endpoints published through the monitoring contract, and
+    the legacy PodMonitor removed.
+
+  catch:
+    - script:
+        content: kubectl -n $NAMESPACE get instance,milvuses.milvus.io,monitoringdestination,monitoringbinding,podmonitor -o yaml
+    - script:
+        content: kubectl get monitoringclass metrics-it-milvus -o yaml
+    - podLogs:
+        namespace: provider-system
+        selector: app.kubernetes.io/name=provider-milvus
+        tail: 100
+
+  steps:
+    - name: setup
+      try:
+        - script:
+            content: |
+              kubectl get crd podmonitors.monitoring.coreos.com >/dev/null 2>&1 || {
+                kubectl apply -f 00-podmonitor-crd.yaml &&
+                kubectl wait --for=condition=Established --timeout=60s crd/podmonitors.monitoring.coreos.com
+              }
+        - apply:
+            file: 00-install.yaml
+        # Stand in for the extension controller: a class is usable only once
+        # its controller has claimed it at its current generation.
+        - script:
+            content: |
+              gen=$(kubectl get monitoringclass/metrics-it-milvus -o jsonpath='{.metadata.generation}')
+              kubectl patch monitoringclass/metrics-it-milvus --subresource status --type merge \
+                -p '{"status":{"conditions":[{"type":"Accepted","status":"True","reason":"Accepted","message":"claimed by the test","observedGeneration":'"$gen"',"lastTransitionTime":"2026-01-01T00:00:00Z"}]}}'
+        - assert:
+            file: 00-assert.yaml
+        - apply:
+            file: 05-legacy-podmonitor.yaml
+      # The class is cluster-scoped: chainsaw deletes it with the namespace's
+      # objects only because it applied it, so make sure.
+      cleanup:
+        - script:
+            content: kubectl delete monitoringclass metrics-it-milvus --ignore-not-found --wait=false
+
+    - name: create-with-destination
+      try:
+        # The deprecated parameter is accepted, with a warning.
+        - script:
+            content: kubectl apply -n $NAMESPACE -f 10-create-instance.yaml
+            check:
+              ($error == null): true
+              (contains($stderr, 'spec.topology.parameters.monitoring.prometheus is deprecated and has no effect')): true
+        - assert:
+            file: 10-assert.yaml
+        - script:
+            content: |
+              generation=$(kubectl get milvuses.milvus.io/monitoring -n $NAMESPACE -o jsonpath='{.metadata.generation}')
+              kubectl patch milvuses.milvus.io/monitoring --subresource status -n $NAMESPACE \
+                -p "{\"status\":{\"status\":\"Healthy\",\"observedGeneration\":$generation}}" --type=merge
+        - assert:
+            file: 11-assert.yaml
+        - error:
+            file: 11-errors.yaml
+        # The published endpoint serves OpenMetrics: scrape it through the
+        # API server's pod proxy, where Milvus pods run.
+        - script:
+            timeout: 10m
+            content: |
+              set -eu
+              pod=$(kubectl get pods -n $NAMESPACE \
+                -l core.openeverest.io/instance=monitoring,core.openeverest.io/component=standalone \
+                -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+              if [ -z "$pod" ]; then
+                echo "no Milvus pod (operator scaled to 0): endpoint not scraped"
+                exit 0
+              fi
+              kubectl wait -n $NAMESPACE --for=condition=Ready --timeout=9m "pod/$pod"
+              kubectl get --raw "/api/v1/namespaces/$NAMESPACE/pods/$pod:9091/proxy/metrics" > /tmp/itest-milvus-metrics
+              grep -q '^milvus_' /tmp/itest-milvus-metrics
+              echo "scraped $(wc -l < /tmp/itest-milvus-metrics) lines from $pod"
+
+    - name: drop-destination
+      try:
+        - patch:
+            file: 20-drop-destination.yaml
+        - assert:
+            file: 20-assert.yaml
+        - error:
+            file: 20-errors.yaml

@@ -33,8 +33,9 @@ permissions:
 
 env:
   IMG: provider-milvus:ci
-  # Branch of openeverest/openeverest to build the platform from.
-  OPENEVEREST_BRANCH: main
+  # Ref of openeverest/openeverest to build the platform and take the CRDs
+  # from: the core release go.mod pins.
+  OPENEVEREST_BRANCH: v2.0.0-alpha.1
 
 jobs:
   run:
@@ -83,7 +84,8 @@ jobs:
       - name: Install CRDs
         run: make install-crds
         env:
-          OPENEVEREST_BRANCH: ${{ env.OPENEVEREST_BRANCH }}
+          # The CRDs of the core the controller is built from.
+          OPENEVEREST_CRD_DIR: _openeverest/config/crd/bases
 
       - name: Deploy provider
         run: make deploy-provider-ci

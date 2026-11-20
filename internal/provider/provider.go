@@ -5,12 +5,10 @@ import (
 	"sort"
 	"strings"
 
-	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -45,7 +43,6 @@ func New() *Provider {
 			ProviderName: common.ProviderName,
 			SchemeFuncs: []func(*runtime.Scheme) error{
 				milvusapi.AddToScheme,
-				monitoringv1.AddToScheme,
 				batchv1.AddToScheme,
 				appsv1.AddToScheme,
 			},
@@ -124,7 +121,7 @@ func makeMilvusComponent(c *controller.Context, name string, image milvusImage) 
 		Replicas: componentReplicasOrDefault(components, name, 1),
 	}
 	applySchedulingPolicy(&component.ComponentSpec, components[name].SchedulingPolicy)
-	params := componentParameters(c, name)
+	params := componentParameters(c.Instance(), name)
 	applyPodCustomization(&component, params.Pod)
 	applyAutoscaling(&component, params.Autoscaling)
 	applyProbes(&component.ComponentSpec, params.Probes)
@@ -176,8 +173,8 @@ func operatorVersion(version string) string {
 // parameters and deep-merges it into a single Values map. Milvus uses one shared
 // engine config (spec.config), so configuration provided on any component is
 // merged; components are processed in sorted name order for deterministic output.
-func milvusEngineConfig(c *controller.Context) (milvusapi.Values, error) {
-	instanceComponents := c.Instance().Spec.Components
+func milvusEngineConfig(in *corev1alpha1.Instance) (milvusapi.Values, error) {
+	instanceComponents := in.Spec.Components
 	names := make([]string, 0, len(instanceComponents))
 	for name := range instanceComponents {
 		names = append(names, name)
@@ -187,7 +184,7 @@ func milvusEngineConfig(c *controller.Context) (milvusapi.Values, error) {
 	merged := milvusapi.Values{}
 	for _, name := range names {
 		var params components.MilvusParameters
-		if !c.TryDecodeComponentParameters(instanceComponents[name], &params) || params.Configuration == "" {
+		if decodeRaw(instanceComponents[name].Parameters, &params) != nil || params.Configuration == "" {
 			continue
 		}
 		parsed := map[string]any{}
@@ -289,12 +286,13 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 				Image:   images.fallback.image,
 				Version: images.fallback.version,
 			},
-			// The provider owns the PodMonitor (see syncPodMonitor).
+			// Monitoring extensions scrape the endpoints MonitoringSources
+			// publishes; the operator's own PodMonitor would scrape them twice.
 			DisableMetric: true,
 		},
 	}
 
-	engineConfig, err := milvusEngineConfig(c)
+	engineConfig, err := milvusEngineConfig(c.Instance())
 	if err != nil {
 		return milvusapi.MilvusSpec{}, err
 	}
@@ -302,10 +300,10 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 		engineConfig = withActiveStandbyDefaults(engineConfig)
 	}
 	spec.Conf = engineConfig
-	storageParam := storageDependencyParam(c, topologyType)
+	storageParam := storageDependencyParam(c.Instance(), topologyType)
 	for _, dependencyConfig := range []milvusapi.Values{
 		externalStorageConfig(storageParam),
-		externalEtcdConfig(etcdDependencyParam(c, topologyType)),
+		externalEtcdConfig(etcdDependencyParam(c.Instance(), topologyType)),
 	} {
 		if dependencyConfig == nil {
 			continue
@@ -352,28 +350,6 @@ func BuildMilvusSpec(c *controller.Context) (milvusapi.MilvusSpec, error) {
 	return spec, nil
 }
 
-// Validate has no rules of its own: the provider's rules read the deployed
-// Milvus and the cluster, so they run in ValidateReferences.
-func (p *Provider) Validate(controller.ValidationInput) controller.ValidationResult {
-	return controller.ValidationResult{}
-}
-
-// ValidateReferences runs the provider's rules before every Sync and reports
-// a rejection on spec.
-func (p *Provider) ValidateReferences(c *controller.Context) (field.ErrorList, error) {
-	l := log.FromContext(c.Context())
-	l.Info("Validating instance", "name", c.Name())
-
-	err := validateInstance(c)
-	if err == nil {
-		err = p.validateReplicaHostsScaleIn(c)
-	}
-	if err != nil {
-		return field.ErrorList{field.Invalid(field.NewPath("spec"), field.OmitValueType{}, err.Error())}, nil
-	}
-	return nil, nil
-}
-
 // Sync ensures all required resources exist and are configured correctly.
 func (p *Provider) Sync(c *controller.Context) error {
 	l := log.FromContext(c.Context())
@@ -408,7 +384,7 @@ func (p *Provider) Sync(c *controller.Context) error {
 	if err := c.Apply(cr); err != nil {
 		return err
 	}
-	if err := syncPodMonitor(c); err != nil {
+	if err := deleteLegacyPodMonitor(c); err != nil {
 		return err
 	}
 	if err := syncDataSource(c); err != nil {
@@ -419,84 +395,6 @@ func (p *Provider) Sync(c *controller.Context) error {
 	}
 	// Last: a schedule error is a BackupConfigError, which ends the pass.
 	return syncBackupSchedules(c)
-}
-
-// Status computes the current status of the database instance.
-func (p *Provider) Status(c *controller.Context) (controller.Status, error) {
-	l := log.FromContext(c.Context())
-	l.Info("Computing status", "name", c.Name())
-
-	cr := &milvusapi.Milvus{}
-	if err := c.Get(cr, c.Name()); err != nil {
-		return controller.Provisioning("waiting for Milvus CR to be created"), nil
-	}
-	// Connection details are published only once seeding has finished.
-	if ds := c.GetDataSourceStatus(); ds != nil && !ds.Done {
-		return controller.Restoring(ds.Message), nil
-	}
-	restoring, err := activeRestore(c)
-	if err != nil {
-		return controller.Status{}, err
-	}
-	if restoring {
-		return controller.Restoring("a restore is running"), nil
-	}
-
-	switch cr.Status.Status {
-	case milvusapi.StatusHealthy:
-		if failure, failing := failingDependency(cr); failing {
-			return controller.Provisioning("a Milvus dependency is not ready: " + failure), nil
-		}
-		host, port, ready, message := resolveEndpoint(c, cr)
-		if !ready {
-			return controller.Provisioning(message), nil
-		}
-
-		creds, err := ensureCredentials(c)
-		if err != nil {
-			return controller.Status{}, err
-		}
-		// Clients keep the working password until a rotation lands.
-		password := creds.appliedPassword
-		tls, err := currentTLS(c)
-		if err != nil {
-			return controller.Status{}, err
-		}
-
-		details := connectionDetails(host, port, password, tls)
-		// Milvus keeps serving during a rollout, so the connection stays published.
-		if message, rolling := rolloutMessage(cr); rolling {
-			status := controller.Updating(message)
-			status.ConnectionDetails = details
-			return status, nil
-		}
-		status := controller.ReadyWithConnectionDetails(details)
-		short, down, err := shortWorkloads(c)
-		if err != nil {
-			return controller.Status{}, err
-		}
-		// The operator notices a workload with no ready pod only after its
-		// Deployment stops being Available.
-		if down {
-			return controller.Provisioning("Milvus is unavailable: " + strings.Join(short, ", ")), nil
-		}
-		if len(short) > 0 {
-			status.Message = "serving with reduced redundancy: " + strings.Join(short, ", ")
-		}
-		return status, nil
-	case milvusapi.StatusPending, milvusapi.StatusDeleting:
-		return controller.Provisioning(notReadyMessage(cr, "Milvus is being initialized or updated")), nil
-	case milvusapi.StatusStopped:
-		return controller.Pending("Milvus is stopped"), nil
-	case milvusapi.StatusUnhealthy:
-		// Query nodes roll blue/green, so Milvus reports Unhealthy mid-rollout.
-		if message, rolling := rolloutMessage(cr); rolling {
-			return controller.Updating(notReadyMessage(cr, message)), nil
-		}
-		return controller.Provisioning(notReadyMessage(cr, "Milvus is unhealthy")), nil
-	default:
-		return controller.Provisioning("Milvus is initializing"), nil
-	}
 }
 
 // connectionDetails publishes the client endpoint; under TLS the URI is
@@ -569,5 +467,5 @@ func rolloutMessage(cr *milvusapi.Milvus) (string, bool) {
 func (p *Provider) Cleanup(c *controller.Context) error {
 	l := log.FromContext(c.Context())
 	l.Info("Cleaning up instance", "name", c.Name())
-	return nil
+	return deleteLegacyPodMonitor(c)
 }

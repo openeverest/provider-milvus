@@ -111,7 +111,7 @@ func TestValidateNoDowngrade(t *testing.T) {
 			if tt.deployed != nil {
 				require.NoError(t, c.Client().Create(context.Background(), tt.deployed))
 			}
-			err := validateNoDowngrade(c)
+			err := runningDowngrades(t, c)
 			if tt.wantErr == "" {
 				require.NoError(t, err)
 				return

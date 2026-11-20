@@ -8,7 +8,10 @@
 // +k8s:openapi-gen=true
 package components
 
-import corev1 "k8s.io/api/core/v1"
+import (
+	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+)
 
 // MilvusParameters defines structured parameters for milvus components.
 // This struct is converted to OpenAPI schema and served via the /schema endpoint.
@@ -113,10 +116,7 @@ type PodCustomization struct {
 	// Env adds environment variables to the Milvus container.
 	Env []corev1.EnvVar `json:"env,omitempty"`
 	// Volumes are added to the pods (Kubernetes Volume objects).
-	// +kubebuilder:validation:Schemaless
-	// +kubebuilder:validation:Type=array
-	// +kubebuilder:pruning:PreserveUnknownFields
-	Volumes []map[string]any `json:"volumes,omitempty"`
+	Volumes []apiextensionsv1.JSON `json:"volumes,omitempty"`
 	// VolumeMounts mount volumes into the Milvus container.
 	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
 	// SecurityContext is the Milvus container's security context (a Kubernetes
@@ -126,8 +126,5 @@ type PodCustomization struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	SecurityContext map[string]any `json:"securityContext,omitempty"`
 	// InitContainers run before Milvus starts (Kubernetes Container objects).
-	// +kubebuilder:validation:Schemaless
-	// +kubebuilder:validation:Type=array
-	// +kubebuilder:pruning:PreserveUnknownFields
-	InitContainers []map[string]any `json:"initContainers,omitempty"`
+	InitContainers []apiextensionsv1.JSON `json:"initContainers,omitempty"`
 }

@@ -8,18 +8,22 @@ import (
 	"slices"
 
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 
-	"github.com/openeverest/openeverest/v2/provider-runtime/controller"
+	corev1alpha1 "github.com/openeverest/openeverest/v2/api/core/v1alpha1"
 
 	"github.com/openeverest/provider-milvus/definition/components"
 	"github.com/openeverest/provider-milvus/internal/milvusapi"
 )
 
-func componentParameters(c *controller.Context, name string) components.MilvusParameters {
+func componentParameters(in *corev1alpha1.Instance, name string) components.MilvusParameters {
 	var params components.MilvusParameters
-	c.TryDecodeComponentParameters(c.Instance().Spec.Components[name], &params)
+	if err := decodeRaw(in.Spec.Components[name].Parameters, &params); err != nil {
+		return components.MilvusParameters{}
+	}
 	return params
 }
 
@@ -90,14 +94,18 @@ func defaultDownwardAPIItems(items []corev1.DownwardAPIVolumeFile) {
 
 // withDefaults decodes a validated free-form object into target, applies the
 // defaults and re-encodes it; an undecodable object is passed through as-is.
-func withDefaults(raw map[string]any, target any, applyDefaults func()) milvusapi.Values {
+func withDefaults(raw apiextensionsv1.JSON, target any, applyDefaults func()) milvusapi.Values {
 	if err := decodeKubernetesObject(raw, target); err != nil {
-		return raw
+		var values milvusapi.Values
+		_ = json.Unmarshal(raw.Raw, &values)
+		return values
 	}
 	applyDefaults()
 	defaulted, err := runtime.DefaultUnstructuredConverter.ToUnstructured(target)
 	if err != nil {
-		return raw
+		var values milvusapi.Values
+		_ = json.Unmarshal(raw.Raw, &values)
+		return values
 	}
 	return defaulted
 }
@@ -105,31 +113,22 @@ func withDefaults(raw map[string]any, target any, applyDefaults func()) milvusap
 // validateComponentParameters rejects malformed component parameters, which
 // would otherwise be dropped silently and deploy pods without the requested
 // settings.
-func validateComponentParameters(c *controller.Context) error {
-	instanceComponents := c.Instance().Spec.Components
-	for _, name := range slices.Sorted(maps.Keys(instanceComponents)) {
-		component := instanceComponents[name]
-		if component.Parameters == nil || component.Parameters.Raw == nil {
+func validateComponentParameters(in *corev1alpha1.Instance) field.ErrorList {
+	var errs field.ErrorList
+	for _, name := range slices.Sorted(maps.Keys(in.Spec.Components)) {
+		component := in.Spec.Components[name]
+		path := componentsPath.Key(name).Child("parameters")
+		var params components.MilvusParameters
+		if err := decodeRaw(component.Parameters, &params); err != nil {
+			errs = append(errs, invalid(path, fmt.Sprintf("component %q has invalid parameters: %v", name, err)))
 			continue
 		}
-		var params components.MilvusParameters
-		if err := c.DecodeComponentParameters(component, &params); err != nil {
-			return fmt.Errorf("component %q has invalid parameters: %w", name, err)
-		}
-		if err := validatePodCustomization(name, params.Pod); err != nil {
-			return err
-		}
-		if err := validateDeploymentGroups(name, component.Replicas, params.Groups); err != nil {
-			return err
-		}
-		if err := validateAutoscaling(name, component, params); err != nil {
-			return err
-		}
-		if err := validateProbes(name, params.Probes); err != nil {
-			return err
-		}
+		errs = appendErr(errs, path.Child("pod"), validatePodCustomization(name, params.Pod))
+		errs = appendErr(errs, path.Child("groups"), validateDeploymentGroups(name, component.Replicas, params.Groups))
+		errs = appendErr(errs, path.Child("autoscaling"), validateAutoscaling(name, component, params))
+		errs = appendErr(errs, path.Child("probes"), validateProbes(name, params.Probes))
 	}
-	return nil
+	return errs
 }
 
 // validatePodCustomization checks the free-form Kubernetes objects strictly so
@@ -170,7 +169,9 @@ func validatePodCustomization(name string, pod *components.PodCustomization) err
 	return nil
 }
 
-func decodeKubernetesObject(raw map[string]any, target any) error {
+// decodeKubernetesObject decodes a free-form object (a map or an
+// apiextensionsv1.JSON) into target, rejecting fields target does not have.
+func decodeKubernetesObject(raw any, target any) error {
 	data, err := json.Marshal(raw)
 	if err != nil {
 		return err
