@@ -1,0 +1,15 @@
+# Expected outcome of approving the names change: the certificate is reissued
+# for the new names and nothing is pending.
+apiVersion: core.openeverest.io/v1alpha1
+kind: Instance
+metadata:
+  name: secure
+status:
+  (length(pendingMaintenance || `[]`)): 0
+---
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: secure
+  annotations:
+    tls.milvus.openeverest.io/additional-names: milvus.example.com,milvus2.example.com

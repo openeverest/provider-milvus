@@ -1,0 +1,25 @@
+# Standalone Milvus serving clients over TLS with a certificate your own CA
+# signs through a cert-manager ClusterIssuer, valid for an external DNS name.
+# Clients find the CA in the <instance>-conn Secret as ca.crt.
+apiVersion: core.openeverest.io/v1alpha1
+kind: Instance
+metadata:
+  name: milvus-tls
+spec:
+  providerRef:
+    name: milvus
+  topology:
+    type: standalone
+  parameters:
+    tls:
+      mode: requireTLS
+      issuer:
+        name: company-ca
+        kind: ClusterIssuer
+        # group: awspca.cert-manager.io   # for an external issuer
+      additionalNames:
+        - milvus.company.com
+  components:
+    standalone:
+      type: milvus
+      replicas: 1

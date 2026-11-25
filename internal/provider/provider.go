@@ -381,6 +381,12 @@ func (p *Provider) Sync(c *controller.Context) error {
 		ObjectMeta: c.ObjectMeta(c.Name()),
 		Spec:       spec,
 	}
+	if tls.enabled && tls.source != tlsSourceSecret {
+		if cr.Annotations == nil {
+			cr.Annotations = map[string]string{}
+		}
+		cr.Annotations[tlsNamesAnnotation] = strings.Join(tls.additionalNames, ",")
+	}
 	if err := c.Apply(cr); err != nil {
 		return err
 	}

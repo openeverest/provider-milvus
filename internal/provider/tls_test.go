@@ -78,7 +78,7 @@ func TestInstanceTLS(t *testing.T) {
 		"disabled":       {params: &definition.TLSParameters{Mode: definition.TLSModeDisabled, CertificateSecretName: "x"}, want: tlsSpec{}},
 		"generated":      {params: requireTLS(), want: tlsSpec{enabled: true, source: tlsSourceGenerated, secretName: "test-milvus-tls"}},
 		"user secret":    {params: &definition.TLSParameters{Mode: definition.TLSModeRequire, CertificateSecretName: "mine"}, want: tlsSpec{enabled: true, source: tlsSourceSecret, secretName: "mine"}},
-		"issuer default": {params: &definition.TLSParameters{Mode: definition.TLSModeRequire, Issuer: &definition.IssuerReference{Name: "ca"}}, want: tlsSpec{enabled: true, source: tlsSourceIssuer, secretName: "test-milvus-tls-issued", issuer: definition.IssuerReference{Name: "ca", Kind: definition.IssuerKindIssuer}}},
+		"issuer default": {params: &definition.TLSParameters{Mode: definition.TLSModeRequire, Issuer: &definition.IssuerReference{Name: "ca"}}, want: tlsSpec{enabled: true, source: tlsSourceIssuer, secretName: "test-milvus-tls-issued", issuer: definition.IssuerReference{Name: "ca", Kind: definition.IssuerKindIssuer, Group: definition.CertManagerGroup}}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -110,6 +110,17 @@ func TestValidateTLS(t *testing.T) {
 			params:  &definition.TLSParameters{Mode: definition.TLSModeRequire, Issuer: &definition.IssuerReference{Kind: definition.IssuerKindClusterIssuer}},
 			wantErr: "tls.issuer.name is required",
 		},
+		"issuer group without name": {
+			params:  &definition.TLSParameters{Mode: definition.TLSModeRequire, Issuer: &definition.IssuerReference{Group: "awspca.cert-manager.io"}},
+			wantErr: "tls.issuer.name is required",
+		},
+		"external issuer kind": {
+			params: &definition.TLSParameters{Mode: definition.TLSModeRequire, Issuer: &definition.IssuerReference{Name: "i", Kind: "AWSPCAClusterIssuer", Group: "awspca.cert-manager.io"}},
+		},
+		"invalid issuer group": {
+			params:  &definition.TLSParameters{Mode: definition.TLSModeRequire, Issuer: &definition.IssuerReference{Name: "i", Group: "Not A Group"}},
+			wantErr: `tls.issuer.group "Not A Group" is not an API group`,
+		},
 		"additional names with a secret": {
 			params:  &definition.TLSParameters{Mode: definition.TLSModeRequire, CertificateSecretName: "s", AdditionalNames: []string{"a.example.com"}},
 			objs:    []client.Object{tlsSecret("s", keyPair)},
@@ -117,10 +128,14 @@ func TestValidateTLS(t *testing.T) {
 		},
 		"invalid additional name": {
 			params:  &definition.TLSParameters{Mode: definition.TLSModeRequire, AdditionalNames: []string{"not a name"}},
-			wantErr: `"not a name" is neither an IP address nor a DNS name`,
+			wantErr: `"not a name" is not a DNS name`,
+		},
+		"IP additional name": {
+			params:  &definition.TLSParameters{Mode: definition.TLSModeRequire, AdditionalNames: []string{"milvus.example.com", "203.0.113.7"}},
+			wantErr: `spec.parameters.tls.additionalNames[1]: Invalid value: tls.additionalNames: "203.0.113.7" is an IP address`,
 		},
 		"valid additional names": {
-			params: &definition.TLSParameters{Mode: definition.TLSModeRequire, AdditionalNames: []string{"milvus.example.com", "*.example.com", "203.0.113.7"}},
+			params: &definition.TLSParameters{Mode: definition.TLSModeRequire, AdditionalNames: []string{"milvus.example.com", "*.example.com"}},
 		},
 		"missing secret": {
 			params:  &definition.TLSParameters{Mode: definition.TLSModeRequire, CertificateSecretName: "s"},
@@ -186,7 +201,7 @@ func TestSyncTLSGeneratesCertificate(t *testing.T) {
 	})
 
 	t.Run("re-issued for new names under the same CA", func(t *testing.T) {
-		params.AdditionalNames = []string{"milvus.example.com", "203.0.113.7"}
+		params.AdditionalNames = []string{"milvus.example.com"}
 		c := newTestContextWithObjects(t, tlsInstanceSpec(t, "standalone", params), secret.DeepCopy(), caSecret(t, c))
 		renamed, err := syncTLS(c)
 		require.NoError(t, err)
@@ -197,8 +212,7 @@ func TestSyncTLSGeneratesCertificate(t *testing.T) {
 		require.NoError(t, c.Get(updated, "test-milvus-tls"))
 		leaf := parseCert(t, updated.Data[tlsKeyCert])
 		assert.Contains(t, leaf.DNSNames, "milvus.example.com")
-		require.Len(t, leaf.IPAddresses, 2)
-		assert.Equal(t, "203.0.113.7", leaf.IPAddresses[1].String())
+		assert.Equal(t, []string{"milvus.example.com"}, renamed.additionalNames)
 	})
 
 	t.Run("renewed before it expires", func(t *testing.T) {
@@ -227,7 +241,7 @@ func TestSyncTLSUserSecret(t *testing.T) {
 
 	state, err := syncTLS(c)
 	require.NoError(t, err)
-	assert.Equal(t, tlsState{enabled: true, secretName: "corp-tls", ca: []byte("ca"), hash: state.hash}, state)
+	assert.Equal(t, tlsState{enabled: true, source: tlsSourceSecret, secretName: "corp-tls", ca: []byte("ca"), hash: state.hash}, state)
 	assert.NotEmpty(t, state.hash)
 
 	labeled := &corev1.Secret{}
@@ -253,7 +267,7 @@ func TestSyncTLSIssuer(t *testing.T) {
 	params := &definition.TLSParameters{
 		Mode:            definition.TLSModeRequire,
 		Issuer:          &definition.IssuerReference{Name: "corp-ca", Kind: definition.IssuerKindClusterIssuer},
-		AdditionalNames: []string{"203.0.113.7"},
+		AdditionalNames: []string{"milvus.example.com"},
 	}
 	c := newTestContext(t, tlsInstanceSpec(t, "standalone", params))
 
@@ -268,7 +282,8 @@ func TestSyncTLSIssuer(t *testing.T) {
 	assert.Equal(t, "test-milvus-tls-issued", spec["secretName"])
 	assert.Equal(t, map[string]any{"name": "corp-ca", "kind": "ClusterIssuer", "group": "cert-manager.io"}, spec["issuerRef"])
 	assert.Contains(t, spec["dnsNames"], "test-milvus-milvus.db.svc")
-	assert.Equal(t, []any{"127.0.0.1", "203.0.113.7"}, spec["ipAddresses"])
+	assert.Contains(t, spec["dnsNames"], "milvus.example.com")
+	assert.Equal(t, []any{"127.0.0.1"}, spec["ipAddresses"])
 	template := spec["secretTemplate"].(map[string]any)
 	assert.Equal(t, map[string]any{tlsWatchLabel: "true"}, template["labels"])
 	assert.Equal(t, map[string]any{tlsInstancesAnnotation: "test-milvus"}, template["annotations"])
@@ -281,6 +296,21 @@ func TestSyncTLSIssuer(t *testing.T) {
 	assert.Equal(t, "test-milvus-tls-issued", state.secretName)
 	assert.Equal(t, []byte("ca"), state.ca)
 
+	t.Run("external issuer", func(t *testing.T) {
+		params := &definition.TLSParameters{
+			Mode:   definition.TLSModeRequire,
+			Issuer: &definition.IssuerReference{Name: "pca", Kind: "AWSPCAClusterIssuer", Group: "awspca.cert-manager.io"},
+		}
+		c := newTestContext(t, tlsInstanceSpec(t, "standalone", params))
+		_, err := syncTLS(c)
+		require.True(t, controller.IsWaitError(err), "waits for cert-manager: %v", err)
+		certificate := &unstructured.Unstructured{}
+		certificate.SetGroupVersionKind(certificateGVK)
+		require.NoError(t, c.Get(certificate, "test-milvus-tls-issued"))
+		assert.Equal(t, map[string]any{"name": "pca", "kind": "AWSPCAClusterIssuer", "group": "awspca.cert-manager.io"},
+			certificate.Object["spec"].(map[string]any)["issuerRef"])
+	})
+
 	t.Run("dropping the issuer removes the certificate", func(t *testing.T) {
 		c := newTestContextWithObjects(t, tlsInstanceSpec(t, "standalone", requireTLS()), certificate.DeepCopy(), issued.DeepCopy())
 		state, err := syncTLS(c)
@@ -290,6 +320,93 @@ func TestSyncTLSIssuer(t *testing.T) {
 		gone := &unstructured.Unstructured{}
 		gone.SetGroupVersionKind(certificateGVK)
 		assert.True(t, apierrors.IsNotFound(c.Get(gone, "test-milvus-tls-issued")))
+	})
+}
+
+func TestAdditionalNamesMaintenance(t *testing.T) {
+	params := &definition.TLSParameters{Mode: definition.TLSModeRequire, AdditionalNames: []string{"b.example.com", "a.example.com"}}
+	running := func(names *string) *milvusapi.Milvus {
+		cr := &milvusapi.Milvus{ObjectMeta: metav1.ObjectMeta{Name: "test-milvus", Namespace: "db"}}
+		if names != nil {
+			cr.Annotations = map[string]string{tlsNamesAnnotation: *names}
+		}
+		return cr
+	}
+	served := func(t *testing.T, c *controller.Context) []string {
+		t.Helper()
+		secret := &corev1.Secret{}
+		require.NoError(t, c.Get(secret, "test-milvus-tls"))
+		return parseCert(t, secret.Data[tlsKeyCert]).DNSNames
+	}
+	recorded := "a.example.com"
+	token := "tls-names-" + namesHash([]string{"a.example.com", "b.example.com"})
+
+	t.Run("a new instance takes the names", func(t *testing.T) {
+		c := newTestContext(t, tlsInstanceSpec(t, "standalone", params))
+		state, err := syncTLS(c)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"a.example.com", "b.example.com"}, state.additionalNames)
+		assert.Empty(t, c.GetPendingMaintenance())
+	})
+
+	t.Run("a running instance without a record keeps its names", func(t *testing.T) {
+		c := newTestContextWithObjects(t, tlsInstanceSpec(t, "standalone", params), running(nil))
+		state, err := syncTLS(c)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"a.example.com", "b.example.com"}, state.additionalNames)
+		assert.Empty(t, c.GetPendingMaintenance())
+	})
+
+	t.Run("a change on a running instance waits for approval", func(t *testing.T) {
+		c := newTestContextWithObjects(t, tlsInstanceSpec(t, "standalone", params), running(&recorded))
+		state, err := syncTLS(c)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"a.example.com"}, state.additionalNames)
+		assert.Contains(t, served(t, c), "a.example.com")
+		assert.NotContains(t, served(t, c), "b.example.com")
+		pending := c.GetPendingMaintenance()
+		require.Len(t, pending, 1)
+		assert.Equal(t, token, pending[0].ApprovalToken)
+		assert.Equal(t, controller.MaintenanceRollingRestart, pending[0].Severity)
+		assert.Contains(t, pending[0].Description, "a.example.com, b.example.com")
+	})
+
+	t.Run("an approved change reissues the certificate", func(t *testing.T) {
+		spec := tlsInstanceSpec(t, "standalone", params)
+		spec.Maintenance = &corev1alpha1.MaintenanceSpec{Approved: token}
+		c := newTestContextWithObjects(t, spec, running(&recorded))
+		state, err := syncTLS(c)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"a.example.com", "b.example.com"}, state.additionalNames)
+		assert.Contains(t, served(t, c), "b.example.com")
+		assert.Empty(t, c.GetPendingMaintenance())
+	})
+
+	t.Run("removing every name waits for approval", func(t *testing.T) {
+		c := newTestContextWithObjects(t, tlsInstanceSpec(t, "standalone", requireTLS()), running(&recorded))
+		state, err := syncTLS(c)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"a.example.com"}, state.additionalNames)
+		require.Len(t, c.GetPendingMaintenance(), 1)
+		assert.Equal(t, "tls-names-"+namesHash(nil), c.GetPendingMaintenance()[0].ApprovalToken)
+	})
+
+	t.Run("Sync records the names on the Milvus resource", func(t *testing.T) {
+		c := newTestContext(t, tlsInstanceSpec(t, "standalone", params))
+		require.NoError(t, New().Sync(c))
+		cr := &milvusapi.Milvus{}
+		require.NoError(t, c.Get(cr, c.Name()))
+		assert.Equal(t, "a.example.com,b.example.com", cr.Annotations[tlsNamesAnnotation])
+	})
+
+	t.Run("no record for a certificate secret", func(t *testing.T) {
+		params := &definition.TLSParameters{Mode: definition.TLSModeRequire, CertificateSecretName: "corp-tls"}
+		user := tlsSecret("corp-tls", map[string]string{tlsKeyCert: "cert", tlsKeyKey: "key"})
+		c := newTestContextWithObjects(t, tlsInstanceSpec(t, "standalone", params), user)
+		require.NoError(t, New().Sync(c))
+		cr := &milvusapi.Milvus{}
+		require.NoError(t, c.Get(cr, c.Name()))
+		assert.NotContains(t, cr.Annotations, tlsNamesAnnotation)
 	})
 }
 

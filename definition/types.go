@@ -44,15 +44,17 @@ type TLSParameters struct {
 	// +optional
 	Issuer *IssuerReference `json:"issuer,omitempty"`
 
-	// AdditionalNames are extra DNS names or IP addresses the issued
-	// certificate covers, such as a DNS record pointing at the load balancer.
-	// Not used with certificateSecretName.
+	// AdditionalNames are extra DNS names the issued certificate covers,
+	// such as a DNS record pointing at the load balancer. DNS names only, not
+	// IP addresses; "*." wildcards are allowed. Not used with
+	// certificateSecretName. Changing them on a running instance reissues the
+	// certificate and restarts the pods serving clients, after maintenance
+	// approval.
 	// +optional
 	AdditionalNames []string `json:"additionalNames,omitempty"`
 }
 
 // IssuerKind is the kind of a cert-manager issuer.
-// +enum
 type IssuerKind string
 
 const (
@@ -62,14 +64,24 @@ const (
 	IssuerKindClusterIssuer IssuerKind = "ClusterIssuer"
 )
 
+// CertManagerGroup is the API group of cert-manager's own issuers.
+const CertManagerGroup = "cert-manager.io"
+
 // IssuerReference refers to a cert-manager issuer.
 type IssuerReference struct {
 	// Name of the issuer.
 	// +optional
 	Name string `json:"name,omitempty"`
 
-	// Kind of the issuer.
+	// Kind of the issuer: Issuer or ClusterIssuer, or the kind of an
+	// external issuer of group.
 	// +default="Issuer"
 	// +optional
 	Kind IssuerKind `json:"kind,omitempty"`
+
+	// Group is the API group of the issuer: cert-manager.io, or that of an
+	// external issuer such as awspca.cert-manager.io.
+	// +default="cert-manager.io"
+	// +optional
+	Group string `json:"group,omitempty"`
 }

@@ -89,6 +89,35 @@ spec:
         - assert:
             file: 60-assert.yaml
 
+    # A new name on the running instance is held until maintenance approves it.
+    - name: tls-additional-names-maintenance
+      try:
+        - patch:
+            resource:
+              apiVersion: core.openeverest.io/v1alpha1
+              kind: Instance
+              metadata:
+                name: secure
+              spec:
+                parameters:
+                  tls:
+                    additionalNames:
+                      - milvus.example.com
+                      - milvus2.example.com
+        - assert:
+            file: 60-names-held-assert.yaml
+        - patch:
+            resource:
+              apiVersion: core.openeverest.io/v1alpha1
+              kind: Instance
+              metadata:
+                name: secure
+              spec:
+                maintenance:
+                  autoApproveUpTo: RollingRestart
+        - assert:
+            file: 60-names-applied-assert.yaml
+
     - name: tls-user-certificate
       try:
         - apply:

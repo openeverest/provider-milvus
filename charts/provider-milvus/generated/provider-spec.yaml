@@ -6573,9 +6573,12 @@ spec:
           properties:
             additionalNames:
               description: |-
-                AdditionalNames are extra DNS names or IP addresses the issued
-                certificate covers, such as a DNS record pointing at the load balancer.
-                Not used with certificateSecretName.
+                AdditionalNames are extra DNS names the issued certificate covers,
+                such as a DNS record pointing at the load balancer. DNS names only, not
+                IP addresses; "*." wildcards are allowed. Not used with
+                certificateSecretName. Changing them on a running instance reissues the
+                certificate and restarts the pods serving clients, after maintenance
+                approval.
               items:
                 type: string
               type: array
@@ -6591,9 +6594,17 @@ spec:
                 Issuer is the cert-manager issuer that signs the instance's
                 certificate, instead of a CA the provider creates for the instance.
               properties:
+                group:
+                  default: cert-manager.io
+                  description: |-
+                    Group is the API group of the issuer: cert-manager.io, or that of an
+                    external issuer such as awspca.cert-manager.io.
+                  type: string
                 kind:
                   default: Issuer
-                  description: Kind of the issuer.
+                  description: |-
+                    Kind of the issuer: Issuer or ClusterIssuer, or the kind of an
+                    external issuer of group.
                   type: string
                 name:
                   description: Name of the issuer.
@@ -8001,7 +8012,7 @@ spec:
               componentsOrder:
                 - certificateSecretName
                 - issuer
-              description: Leave empty to have a certificate issued by a CA created for the instance. Clients find the CA in the connection secret as ca.crt.
+              description: Leave empty to have a certificate issued by a CA created for the instance. Clients find the CA in the connection secret as ca.crt. Extra DNS names (additionalNames) and external issuers (issuer.group) are set in the Instance YAML.
               groupType: bordered
               label: Certificate
               uiType: group
@@ -8271,7 +8282,7 @@ spec:
               componentsOrder:
                 - certificateSecretName
                 - issuer
-              description: Leave empty to have a certificate issued by a CA created for the instance. Clients find the CA in the connection secret as ca.crt.
+              description: Leave empty to have a certificate issued by a CA created for the instance. Clients find the CA in the connection secret as ca.crt. Extra DNS names (additionalNames) and external issuers (issuer.group) are set in the Instance YAML.
               groupType: bordered
               label: Certificate
               uiType: group

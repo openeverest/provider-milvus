@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -53,6 +54,10 @@ const (
 	// provider does not own, so its changes reach the instances using it.
 	tlsWatchLabel          = "tls.milvus.openeverest.io/watched"
 	tlsInstancesAnnotation = "tls.milvus.openeverest.io/instances"
+	// tlsNamesAnnotation on the Milvus resource records the additional names
+	// the served certificate was issued for, so that changing them on a
+	// running instance waits for maintenance approval.
+	tlsNamesAnnotation = "tls.milvus.openeverest.io/additional-names"
 
 	tlsKeyCert = corev1.TLSCertKey
 	tlsKeyKey  = corev1.TLSPrivateKeyKey
@@ -62,7 +67,11 @@ const (
 	milvusTLSModeServer = 1
 )
 
-var certificateGVK = schema.GroupVersionKind{Group: "cert-manager.io", Version: "v1", Kind: "Certificate"}
+var (
+	certificateGVK = schema.GroupVersionKind{Group: definition.CertManagerGroup, Version: "v1", Kind: "Certificate"}
+
+	certManagerIssuerKinds = []definition.IssuerKind{definition.IssuerKindIssuer, definition.IssuerKindClusterIssuer}
+)
 
 type tlsSource int
 
@@ -84,7 +93,11 @@ type tlsSpec struct {
 // tlsState is the certificate Milvus serves clients with.
 type tlsState struct {
 	enabled    bool
+	source     tlsSource
 	secretName string
+	// additionalNames are the names the certificate is issued for, recorded
+	// on the Milvus resource; nil for a certificate secret.
+	additionalNames []string
 	// ca verifies the certificate; empty when a public CA signed it.
 	ca   []byte
 	hash string
@@ -112,9 +125,8 @@ func instanceTLS(c *controller.Context) tlsSpec {
 		spec.source = tlsSourceIssuer
 		spec.secretName = c.Name() + issuedTLSSuffix
 		spec.issuer = *params.Issuer
-		if spec.issuer.Kind == "" {
-			spec.issuer.Kind = definition.IssuerKindIssuer
-		}
+		spec.issuer.Kind = cmp.Or(spec.issuer.Kind, definition.IssuerKindIssuer)
+		spec.issuer.Group = cmp.Or(spec.issuer.Group, definition.CertManagerGroup)
 	default:
 		spec.source = tlsSourceGenerated
 		spec.secretName = c.Name() + generatedTLSSecretSuffix
@@ -135,13 +147,16 @@ func validateTLS(in *corev1alpha1.Instance) error {
 		return fieldErrorf(path.Child("mode"), "tls.mode %q is not supported; expected %s or %s", params.Mode, definition.TLSModeDisabled, definition.TLSModeRequire)
 	}
 	if params.Issuer != nil {
-		switch params.Issuer.Kind {
-		case "", definition.IssuerKindIssuer, definition.IssuerKindClusterIssuer:
-		default:
+		// External issuers bring their own kinds.
+		group := cmp.Or(params.Issuer.Group, definition.CertManagerGroup)
+		if group == definition.CertManagerGroup && params.Issuer.Kind != "" && !slices.Contains(certManagerIssuerKinds, params.Issuer.Kind) {
 			return fieldErrorf(path.Child("issuer", "kind"), "tls.issuer.kind %q is not supported; expected %s or %s", params.Issuer.Kind, definition.IssuerKindIssuer, definition.IssuerKindClusterIssuer)
 		}
-		if params.Issuer.Name == "" && params.Issuer.Kind != "" {
-			return field.Required(path.Child("issuer", "name"), "tls.issuer.name is required with tls.issuer.kind")
+		if params.Issuer.Name == "" && (params.Issuer.Kind != "" || params.Issuer.Group != "") {
+			return field.Required(path.Child("issuer", "name"), "tls.issuer.name is required with tls.issuer.kind or tls.issuer.group")
+		}
+		if errs := validation.IsDNS1123Subdomain(group); len(errs) > 0 {
+			return fieldErrorf(path.Child("issuer", "group"), "tls.issuer.group %q is not an API group: %s", params.Issuer.Group, strings.Join(errs, "; "))
 		}
 	}
 	issuer := params.Issuer != nil && params.Issuer.Name != ""
@@ -153,10 +168,10 @@ func validateTLS(in *corev1alpha1.Instance) error {
 	}
 	for i, name := range params.AdditionalNames {
 		if net.ParseIP(name) != nil {
-			continue
+			return fieldErrorf(path.Child("additionalNames").Index(i), "tls.additionalNames: %q is an IP address; only DNS names are supported", name)
 		}
 		if errs := validation.IsDNS1123Subdomain(strings.TrimPrefix(name, "*.")); len(errs) > 0 {
-			return fieldErrorf(path.Child("additionalNames").Index(i), "tls.additionalNames: %q is neither an IP address nor a DNS name: %s", name, strings.Join(errs, "; "))
+			return fieldErrorf(path.Child("additionalNames").Index(i), "tls.additionalNames: %q is not a DNS name: %s", name, strings.Join(errs, "; "))
 		}
 	}
 	return nil
@@ -196,6 +211,13 @@ func syncTLS(c *controller.Context) (tlsState, error) {
 	if !spec.enabled {
 		return tlsState{}, nil
 	}
+	if spec.source != tlsSourceSecret {
+		names, err := appliedAdditionalNames(c, spec.additionalNames)
+		if err != nil {
+			return tlsState{}, err
+		}
+		spec.additionalNames = names
+	}
 	switch spec.source {
 	case tlsSourceSecret:
 		if err := watchCertificateSecret(c, spec.secretName); err != nil {
@@ -232,7 +254,10 @@ func currentTLS(c *controller.Context) (tlsState, error) {
 }
 
 func readTLSState(c *controller.Context, spec tlsSpec) (tlsState, bool, error) {
-	state := tlsState{enabled: true, secretName: spec.secretName}
+	state := tlsState{enabled: true, source: spec.source, secretName: spec.secretName}
+	if spec.source != tlsSourceSecret {
+		state.additionalNames = normalizeNames(spec.additionalNames)
+	}
 	secret := &corev1.Secret{}
 	if err := c.Get(secret, spec.secretName); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -287,6 +312,58 @@ func splitNames(names []string) (dns, ips []string) {
 	return dns, ips
 }
 
+// appliedAdditionalNames returns the additional names to issue the
+// certificate for. A new instance takes them as they are. On a running one a
+// change reissues the certificate and restarts the pods serving clients, so
+// it waits for maintenance approval and keeps the recorded names until then.
+// An instance without a record, created by an earlier provider version,
+// already serves the names it asks for.
+func appliedAdditionalNames(c *controller.Context, names []string) ([]string, error) {
+	desired := normalizeNames(names)
+	cr := &milvusapi.Milvus{}
+	if err := c.Get(cr, c.Name()); err != nil {
+		if apierrors.IsNotFound(err) {
+			return desired, nil
+		}
+		return nil, fmt.Errorf("get Milvus %q: %w", c.Name(), err)
+	}
+	value, recordedAny := cr.GetAnnotations()[tlsNamesAnnotation]
+	if !recordedAny {
+		return desired, nil
+	}
+	var recorded []string
+	if value != "" {
+		recorded = strings.Split(value, ",")
+	}
+	if slices.Equal(desired, recorded) {
+		return desired, nil
+	}
+	description := "Reissue the TLS certificate without additional names and restart the pods serving clients"
+	if len(desired) > 0 {
+		description = fmt.Sprintf("Reissue the TLS certificate for the additional names %s and restart the pods serving clients",
+			strings.Join(desired, ", "))
+	}
+	if c.RequestMaintenance("tls-names-"+namesHash(desired), description, controller.MaintenanceRollingRestart) {
+		return desired, nil
+	}
+	return recorded, nil
+}
+
+// normalizeNames sorts names and drops duplicates.
+func normalizeNames(names []string) []string {
+	if len(names) == 0 {
+		return nil
+	}
+	out := slices.Clone(names)
+	slices.Sort(out)
+	return slices.Compact(out)
+}
+
+func namesHash(names []string) string {
+	sum := sha256.Sum256([]byte(strings.Join(names, ",")))
+	return hex.EncodeToString(sum[:])[:10]
+}
+
 func applyIssuedCertificate(c *controller.Context, spec tlsSpec, names []string) error {
 	dns, ips := splitNames(names)
 	certSpec := map[string]any{
@@ -294,7 +371,7 @@ func applyIssuedCertificate(c *controller.Context, spec tlsSpec, names []string)
 		"issuerRef": map[string]any{
 			"name":  spec.issuer.Name,
 			"kind":  string(spec.issuer.Kind),
-			"group": certificateGVK.Group,
+			"group": spec.issuer.Group,
 		},
 		"dnsNames":   toAnySlice(dns),
 		"privateKey": map[string]any{"rotationPolicy": "Always"},
