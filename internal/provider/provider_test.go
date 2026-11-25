@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	corev1alpha1 "github.com/openeverest/openeverest/v2/api/core/v1alpha1"
+	"github.com/openeverest/openeverest/v2/contract"
 	"github.com/openeverest/openeverest/v2/provider-runtime/controller"
 
 	"github.com/openeverest/provider-milvus/definition/components"
@@ -360,7 +361,7 @@ func TestNotReadyMessage(t *testing.T) {
 func TestBuildMilvusSpecLabelsComponentPods(t *testing.T) {
 	podLabels := func(component string) map[string]string {
 		return map[string]string{
-			controller.ProviderLabel:  common.ProviderName,
+			contract.ProviderLabel:    common.ProviderName,
 			controller.InstanceLabel:  "test-milvus",
 			controller.ComponentLabel: component,
 		}

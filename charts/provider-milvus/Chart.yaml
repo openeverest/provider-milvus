@@ -18,3 +18,5 @@ dependencies:
     alias: operator
     version: "1.3.13"
     repository: https://zilliztech.github.io/milvus-operator/
+annotations:
+  openeverest.io/contract-version: "2.0.0-alpha.1.next"

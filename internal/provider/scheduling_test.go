@@ -10,6 +10,7 @@ import (
 
 	commonv1alpha1 "github.com/openeverest/openeverest/v2/api/common/v1alpha1"
 	corev1alpha1 "github.com/openeverest/openeverest/v2/api/core/v1alpha1"
+	"github.com/openeverest/openeverest/v2/contract"
 	"github.com/openeverest/openeverest/v2/provider-runtime/controller"
 
 	"github.com/openeverest/provider-milvus/internal/common"
@@ -63,7 +64,7 @@ func TestBuildMilvusSpecSchedulingPolicy(t *testing.T) {
 
 	t.Run("spread without a selector counts the component's own pods", func(t *testing.T) {
 		assert.Equal(t, &metav1.LabelSelector{MatchLabels: map[string]string{
-			controller.ProviderLabel:  common.ProviderName,
+			contract.ProviderLabel:    common.ProviderName,
 			controller.InstanceLabel:  "test-milvus",
 			controller.ComponentLabel: common.ComponentQueryNode,
 		}}, spec.Com.QueryNode.TopologySpreadConstraints[0].LabelSelector)

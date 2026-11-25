@@ -16,6 +16,13 @@ package provider
 // The runtime writes the connection details returned by Status() into a Secret.
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 
+// Startup gate (provider-runtime holds a new build until the installed
+// OpenEverest supports its contract version, then records that version on
+// this provider's Provider; keep resourceNames in sync with
+// common.ProviderName):
+// +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,resourceNames=providers.core.openeverest.io,verbs=get
+// +kubebuilder:rbac:groups=core.openeverest.io,resources=providers/status,resourceNames=milvus,verbs=patch
+
 // Milvus operator resources.
 // +kubebuilder:rbac:groups=milvus.io,resources=milvuses,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=milvus.io,resources=milvuses/status,verbs=get;update;patch
