@@ -249,8 +249,9 @@ spec:
       certificateSecretName: my-tls    # tls.crt, tls.key and ca.crt
       issuer:                          # cert-manager
         name: corp-ca
-        kind: ClusterIssuer            # Issuer (default) | ClusterIssuer
-      additionalNames:                 # extra DNS names or IPs for issued certificates
+        kind: ClusterIssuer            # Issuer (default) | ClusterIssuer, or an external kind
+        group: cert-manager.io         # default; an external issuer's group, e.g. awspca.cert-manager.io
+      additionalNames:                 # extra DNS names for generated and issued certificates
         - milvus.example.com
 ```
 
@@ -267,9 +268,19 @@ spec:
   Issued certificates cover `localhost`, the instance's Service in every form
   (`<instance>-milvus`, `.<namespace>`, `.svc`, `.svc.cluster.local`), the published
   host of a LoadBalancer or NodePort service, and `additionalNames`.
+- **`additionalNames`** are DNS names only (`*.` wildcards allowed), not IP addresses,
+  and cannot be combined with `certificateSecretName`, whose certificate carries its own
+  names. The UI does not show them yet; set them in the Instance YAML.
+- **`issuer.group`** selects an external cert-manager issuer (AWS Private CA, Google CAS,
+  …); it goes into the `Certificate`'s `issuerRef.group`. `kind` must be `Issuer` or
+  `ClusterIssuer` only for the default `cert-manager.io` group.
 - **Changes roll out by themselves.** Milvus reads its certificate only at startup, so a
   new certificate (a renewal, a different source, a new published host) restarts the
-  standalone pod or the proxies; so does turning TLS on or off.
+  standalone pod or the proxies; so does turning TLS on or off. Changing
+  `additionalNames` on a running instance is held as a `RollingRestart` maintenance
+  action (`tls-names-<hash>`) until you approve it in `spec.maintenance.approved` (or
+  allow it with `autoApproveUpTo: RollingRestart`); until then the certificate keeps its
+  current names.
 - **Clients** verify the instance and authenticate with their password, without a client
   certificate. The connection Secret's `uri` turns to `https://`, and `ca.crt` carries
   the CA (omitted for a public CA):
@@ -283,6 +294,46 @@ spec:
   certificate, pass `server_name=` one of its names.
 - The provider's own calls (root password rotation, the scale-in check) and the
   `milvus-backup` Jobs switch to TLS with the instance.
+
+#### Bring your own CA
+
+Have cert-manager sign the instance's certificate with your company CA, and connect to
+an external name with full verification:
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: company-ca
+spec:
+  ca:
+    secretName: company-ca   # tls.crt and tls.key of your CA, in the cert-manager namespace
+```
+
+Then point the instance at it ([examples/instance-tls-issuer.yaml](examples/instance-tls-issuer.yaml)):
+
+```yaml
+spec:
+  parameters:
+    tls:
+      mode: requireTLS
+      issuer:
+        name: company-ca
+        kind: ClusterIssuer
+      additionalNames:
+        - milvus.company.com
+```
+
+Point `milvus.company.com` at the instance (for example a LoadBalancer service), and
+clients that trust the company CA verify it without extra configuration.
+
+#### Migrating from earlier versions
+
+- `additionalNames` no longer accept IP addresses. An Instance that lists one is
+  rejected on its next update: remove the IPs (a names change, so it needs maintenance
+  approval) and connect through a DNS name instead.
+- `issuer.group` is new and defaults to `cert-manager.io`, so existing Instances keep
+  their certificates.
 
 Not supported yet ([#88](https://github.com/openeverest/provider-milvus/issues/88)): mutual TLS (client certificates; `milvus-backup` cannot present one
 to the REST API) and TLS between Milvus components or to the bundled etcd and object

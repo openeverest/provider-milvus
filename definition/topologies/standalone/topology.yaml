@@ -195,7 +195,7 @@ ui:
           uiType: group
           groupType: bordered
           label: "Certificate"
-          description: "Leave empty to have a certificate issued by a CA created for the instance. Clients find the CA in the connection secret as ca.crt."
+          description: "Leave empty to have a certificate issued by a CA created for the instance. Clients find the CA in the connection secret as ca.crt. Extra DNS names (additionalNames) and external issuers (issuer.group) are set in the Instance YAML."
           components:
             certificateSecretName:
               uiType: text
