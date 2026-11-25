@@ -1,8 +1,10 @@
 {{/*
 Renders every BackupClass manifest produced by `provider-sdk generate` from
-definition/backupclasses/.
+definition/backupclasses/, stamped with the provider release and the
+OpenEverest it is built against, and with the acknowledgement of
+compatibility.acknowledge.coreVersion when it is set.
 */}}
 {{- range $path, $_ := .Files.Glob "generated/backupclasses/*.yaml" }}
 ---
-{{ $.Files.Get $path }}
+{{ include "openeverest.contract.generatedObject" (dict "root" $ "path" $path) }}
 {{- end }}
