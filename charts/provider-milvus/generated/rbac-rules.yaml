@@ -39,6 +39,14 @@
     - create
     - patch
 - apiGroups:
+    - apiextensions.k8s.io
+  resourceNames:
+    - providers.core.openeverest.io
+  resources:
+    - customresourcedefinitions
+  verbs:
+    - get
+- apiGroups:
     - apps
   resources:
     - deployments
@@ -165,6 +173,14 @@
     - get
     - list
     - watch
+- apiGroups:
+    - core.openeverest.io
+  resourceNames:
+    - milvus
+  resources:
+    - providers/status
+  verbs:
+    - patch
 - apiGroups:
     - milvus.io
   resources:
