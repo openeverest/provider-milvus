@@ -27,8 +27,9 @@ concurrency:
 env:
   IMG: provider-milvus:ci
   # Ref of openeverest/openeverest to build the platform and take the CRDs
-  # from: the core release go.mod pins.
-  OPENEVEREST_BRANCH: v2.0.0-alpha.1
+  # from: the core commit go.mod pins. Its CRDs publish the versions it
+  # serves, which the chart's stamp is checked against on install.
+  OPENEVEREST_BRANCH: e7eb057b51cb7bbc6c803161ef530dc1cb8e9b08
 
 jobs:
   e2e:
