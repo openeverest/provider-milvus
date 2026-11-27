@@ -235,7 +235,10 @@ Common Job settings:
 - Pod security: `runAsNonRoot`, `readOnlyRootFilesystem`, all capabilities
   dropped, `seccompProfile: RuntimeDefault`. The image runs as root by
   default, so we set `runAsUser: 65532`. The spike (section 13) confirms this
-  works with a read-only root and console-only logging.
+  works with a read-only root and console-only logging. On OpenShift
+  (detected by the `security.openshift.io` SecurityContextConstraints API),
+  we leave the UID and GID unset: the restricted-v2 SCC assigns them from the
+  namespace range and rejects any other.
 - Image comes from provider Helm values (`backup.image`, default
   `milvusdb/milvus-backup:v0.6.0`) and reaches the provider as an env var.
   Air-gapped installs override it. Resources come from Helm values too
