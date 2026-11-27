@@ -125,6 +125,9 @@ type backupJobSpec struct {
 	namespace string
 	// tlsCASecret holds the ca.crt that verifies the instance under TLS.
 	tlsCASecret string
+	// openShift leaves the UID and GID to the SCC, which rejects fixed IDs
+	// outside the namespace range.
+	openShift bool
 }
 
 // backupTLSMountPath holds the instance's CA in milvus-backup Jobs.
@@ -200,6 +203,9 @@ func ensureBackupJob(c *controller.Context, spec backupJobSpec) (*batchv1.Job, e
 		return nil, fmt.Errorf("get milvus-backup job: %w", err)
 	}
 
+	if spec.openShift, err = isOpenShift(c.Client()); err != nil {
+		return nil, err
+	}
 	job = &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: spec.namespace, Labels: labels},
 		Spec:       backupJobTemplate(spec, name, labels),
@@ -245,6 +251,16 @@ func backupJobTemplate(spec backupJobSpec, configName string, labels map[string]
 		// Go adds the certificates in these directories to the system roots.
 		env = append(append([]corev1.EnvVar{}, env...), corev1.EnvVar{Name: "SSL_CERT_DIR", Value: "/etc/ssl/certs:" + backupTLSMountPath})
 	}
+	// The image has no USER, so runAsNonRoot needs a numeric one, except on
+	// OpenShift, whose SCC assigns it.
+	podSecurity := &corev1.PodSecurityContext{
+		RunAsNonRoot:   ptr.To(true),
+		SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+	}
+	if !spec.openShift {
+		podSecurity.RunAsUser = ptr.To(int64(65532))
+		podSecurity.RunAsGroup = ptr.To(int64(65532))
+	}
 	return batchv1.JobSpec{
 		// A retried create would collide with the half-written backup.
 		BackoffLimit: ptr.To(int32(0)),
@@ -254,12 +270,7 @@ func backupJobTemplate(spec backupJobSpec, configName string, labels map[string]
 				RestartPolicy:                corev1.RestartPolicyNever,
 				ServiceAccountName:           spec.saName,
 				AutomountServiceAccountToken: ptr.To(spec.saName != ""),
-				SecurityContext: &corev1.PodSecurityContext{
-					RunAsNonRoot:   ptr.To(true),
-					RunAsUser:      ptr.To(int64(65532)),
-					RunAsGroup:     ptr.To(int64(65532)),
-					SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
-				},
+				SecurityContext:              podSecurity,
 				Containers: []corev1.Container{{
 					Name:                     "milvus-backup",
 					Image:                    backupJobImage(),

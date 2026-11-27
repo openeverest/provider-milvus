@@ -193,6 +193,9 @@ func applyBackupSchedule(c *controller.Context, cr *milvusapi.Milvus, name strin
 		return fmt.Errorf("apply schedule config: %w", err)
 	}
 
+	if spec.openShift, err = isOpenShift(c.Client()); err != nil {
+		return err
+	}
 	jobSpec := backupJobTemplate(spec, name, labels)
 	container := &jobSpec.Template.Spec.Containers[0]
 	container.Command = []string{"/bin/sh", "-c", scheduledCreateScript, "milvus-backup"}
